@@ -30,7 +30,7 @@ PROJECT ( Tunnelier CXX )
 #####################################
 ## Include directories 
 INCLUDE_DIRECTORIES( include lib ${INSTALL_LIBS} ${INSTALL_INCS})
-
+ADD_DEFINITIONS( -std=c++11 )
 #####################################
 ## Folders to be build
 #####################################
@@ -53,6 +53,9 @@ message(${INSTALL_LIBS})
 # Others
 #####################################
 IF( UNIX )
+
+    
+
    ADD_CUSTOM_TARGET( distclean @@echo cleaning for source distribution)
   SET(DISTCLEANED
    cmake.depends
