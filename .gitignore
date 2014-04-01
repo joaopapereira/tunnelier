@@ -7,3 +7,4 @@ CMakeCache/*
 /CMakeFiles
 /bin
 /lib
+tests/gtest
