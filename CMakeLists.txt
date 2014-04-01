@@ -3,6 +3,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 ## Option part
 #####################################
 option(compile_with_debug "Build library with debug." OFF)
+option(compile_with_tests "Build tests for application." OFF)
 
 #####################################
 ## Definition of environment
@@ -36,6 +37,10 @@ ADD_DEFINITIONS( -std=c++11 )
 #####################################
 ADD_SUBDIRECTORY( src bin )
 #ADD_SUBDIRECTORY( exampleProgram bin )
+if( compile_with_tests )
+  ADD_SUBDIRECTORY( tests bin/tests)
+endif()
+
 
 #####################################
 # Search for needed lib
