@@ -35,6 +35,8 @@ ADD_DEFINITIONS( -std=c++11 )
 #####################################
 ## Folders to be build
 #####################################
+ADD_SUBDIRECTORY( src/jsoncpp lib )
+ADD_SUBDIRECTORY( src/tunnel lib )
 ADD_SUBDIRECTORY( src bin )
 #ADD_SUBDIRECTORY( exampleProgram bin )
 if( compile_with_tests )
