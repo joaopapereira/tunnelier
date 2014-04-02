@@ -14,7 +14,7 @@
 #include <libssh/libssh.h>
 #include <vector>
 #include <iostream>
-#define USE_LISTENER 1
+#define USE_LISTENER 0
 #if USE_LISTENER
 #include <event2/listener.h>
 #include <event2/bufferevent.h>
@@ -29,6 +29,8 @@ public:
 	static void ssh_to_socket(struct bufferevent *bev, void *ctx);
 	static void errorcb(struct bufferevent *bev, short error, void *ctx);
 	static int MAX_READ;
+	void run();
+	void start();
 private:
 	Tunnel * parent;
 	int socket;
@@ -49,6 +51,7 @@ public:
 	 * Start tunnel
 	 */
 	bool start();
+	int run();
 	/**
 	 * Stop tunnel
 	 */
@@ -73,12 +76,14 @@ private:
 	/**
 	 * Username
 	 */
+	bool stillRunning;
 	User middleUser;
 	std::vector<Connection> tunnelConnections;
 #if USE_LISTENER
 	struct evconnlistener * listener;
 #else
-	evutil_socket_t listener;
+	//evutil_socket_t listener;
+	int listener;
 #endif
 	struct event_base *base;
 	struct event listener_event;

@@ -29,6 +29,7 @@ private:
 	struct event_base *http_base;
 	struct event_base *base;
 	std::vector<Tunnel*> tunnels;
+
 };
 
 #endif /* SHAREDMEMORY_H_ */
