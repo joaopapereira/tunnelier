@@ -23,7 +23,7 @@
 class Tunnel;
 class Connection {
 public:
-	Connection( Tunnel* parent, int socket);
+	Connection( Tunnel* parent, int socket, ssh_channel fw_channel);
 	virtual ~Connection();
 	static void socket_to_ssh(struct bufferevent *bev, void *ctx);
 	static void ssh_to_socket(struct bufferevent *bev, void *ctx);
@@ -32,6 +32,7 @@ public:
 private:
 	Tunnel * parent;
 	int socket;
+	ssh_channel fw_channel;
 };
 
 class Tunnel{
@@ -49,6 +50,7 @@ public:
 	 * Start tunnel
 	 */
 	bool start();
+	int run();
 	/**
 	 * Stop tunnel
 	 */
@@ -74,6 +76,7 @@ private:
 	 * Username
 	 */
 	User middleUser;
+	std::thread *thr;
 	std::vector<Connection> tunnelConnections;
 #if USE_LISTENER
 	struct evconnlistener * listener;

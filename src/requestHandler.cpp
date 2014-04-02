@@ -150,7 +150,7 @@ create_tunnel_handler_cb(struct evhttp_request *req, void *arg)
     		   tunnel->start();
     		   //mem->addTunnel(string("tun"), tunnel);
     		   response["Success"] = "Tunnel created with success";
-    		   event_base_dispatch(mem->getEventBase());
+    		   //event_base_dispatch(mem->getEventBase());
     	   }
        }else{
     	   response["Error"].append("Port map is not passed");

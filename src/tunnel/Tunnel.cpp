@@ -15,16 +15,20 @@ Tunnel::Tunnel(struct event_base *base, int localPort, Address destination, Addr
 	localPort(localPort),
 	destination(destination),
 	middle(middle),
-	middleUser(middleUser){
-	tunnel_session = ssh_new();
-
+	middleUser(middleUser),
+	thr(nullptr),
+	tunnel_session(ssh_new()){
 }
 
 bool
 Tunnel::start(){
 	cout << "Starting tunnel"<< endl;
+	thr = new thread(&Tunnel::run, *this);
+}
+int
+Tunnel::run(){
 	struct sockaddr_in sin;
-	//base = event_base_new();
+	base = event_base_new();
 	if (!base)
 		return false; /*XXXerr*/
 
@@ -70,18 +74,9 @@ Tunnel::start(){
 		 return false;
 	 }
 
-	forwarding_channel = ssh_channel_new(tunnel_session);
-	if (forwarding_channel == NULL) {
-	    return false;
-	}
-	int rc = ssh_channel_open_forward(forwarding_channel,
-								destination.getHost().c_str(), destination.getPort(),
-								"localhost", localPort);
-	if (rc != SSH_OK)
-	{
-		ssh_channel_free(forwarding_channel);
-		return false;
-	}
+
+
+	event_base_dispatch(base);
 	return true;
 }
 
@@ -121,12 +116,26 @@ Tunnel::accept_conn_cb(struct evconnlistener *listener,
     void *ptr)
 {
 	Tunnel *ctx = static_cast<Tunnel *>(ptr);
+	ssh_channel forwarding_channel;
+	forwarding_channel = ssh_channel_new(ctx->tunnel_session);
+	if (forwarding_channel == NULL) {
+		return;
+	}
+	int rc = ssh_channel_open_forward(forwarding_channel,
+									ctx->destination.getHost().c_str(), ctx->destination.getPort(),
+									"localhost", ctx->localPort);
+	if (rc != SSH_OK)
+	{
+		ssh_channel_free(forwarding_channel);
+		return;
+	}
+
 
 	/* We got a new connection! Set up a bufferevent for it. */
 	struct event_base *base = evconnlistener_get_base(listener);
 	struct bufferevent *bev = bufferevent_socket_new(
 			ctx->base, fd, BEV_OPT_CLOSE_ON_FREE);
-	Connection *con = new Connection(ctx, fd);
+	Connection *con = new Connection(ctx, fd, forwarding_channel);
 	bufferevent_setcb(bev, Connection::socket_to_ssh, NULL, Connection::errorcb, (void*)con);
 
 	bufferevent_enable(bev, EV_READ|EV_WRITE);
@@ -246,9 +255,10 @@ int authenticate_kbdint(ssh_session session, const char *password) {
      return err;
 }
 int Connection::MAX_READ = 2048;
-Connection::Connection(Tunnel* parent, int socket):
+Connection::Connection(Tunnel* parent, int socket, ssh_channel forwarding_channel):
 	parent(parent),
-	socket(socket){
+	socket(socket),
+	fw_channel(forwarding_channel){
 	cout << "Create connection!!"<<endl;
 	// TODO Auto-generated constructor stub
 
@@ -267,8 +277,9 @@ Connection::socket_to_ssh(struct bufferevent *bev, void *ctx){
 	struct evbuffer *input = bufferevent_get_input(bev);
 	while ((readLen = evbuffer_remove(input, readBuff, sizeof(readBuff))) > 0) {
 		readBuff[readLen] = 0;
-		ssh_channel_write(con->parent->forwarding_channel, readBuff, readLen);
+		ssh_channel_write(con->fw_channel, readBuff, readLen);
 	}
+	cout << "Exit socket_to_ssh"<<endl;
 }
 void
 Connection::ssh_to_socket(struct bufferevent *bev, void *ctx){
@@ -277,18 +288,18 @@ Connection::ssh_to_socket(struct bufferevent *bev, void *ctx){
 	char readBuff[MAX_READ];
 	int r;
 	int lus;
-	while(con->parent->forwarding_channel && ssh_channel_is_open(con->parent->forwarding_channel) && (r = ssh_channel_poll(con->parent->forwarding_channel,0))!=0){
-	        lus=ssh_channel_read(con->parent->forwarding_channel,readBuff,sizeof(readBuff) > r ? r : sizeof(readBuff),0);
+	while(con->fw_channel && ssh_channel_is_open(con->fw_channel) && (r = ssh_channel_poll(con->fw_channel,0))!=0){
+	        lus=ssh_channel_read(con->fw_channel,readBuff,sizeof(readBuff) > r ? r : sizeof(readBuff),0);
 	        if(lus==-1){
 	            fprintf(stderr, "Error reading channel: %s\n",
-	                    ssh_get_error(con->parent->tunnel_session));
+	                    ssh_get_error(con->fw_channel));
 	            return;
 	        }
 	        if(lus!=0){
 	        	evbuffer_add_printf(bufferevent_get_output(bev), "%s", readBuff);
 	        }
 	}
-
+	cout << "Exit ssh_to_socket"<<endl;
 }
 
 
