@@ -10,7 +10,9 @@
 #include <string>
 #include <thread>
 #include "SharedMemory.h"
-
+#include "Tunnel.hpp"
+#include "Address.hpp"
+#include "User.hpp"
 class RequestHandler{
 public:
 	RequestHandler(SharedMemory *memory, std::string ip, int port)
@@ -18,8 +20,9 @@ public:
 		mem = memory;
 	};
 	std::thread start_server();
-private:
 	int create_server();
+private:
+
 	SharedMemory *mem;
 	std::string ip_address;
 	int port;

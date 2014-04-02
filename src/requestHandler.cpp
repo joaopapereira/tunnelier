@@ -68,13 +68,13 @@ return;
 void
 create_tunnel_handler_cb(struct evhttp_request *req, void *arg)
 {
-	SharedMemory *mem = (SharedMemory*)arg;
+	SharedMemory *mem = static_cast<SharedMemory*>(arg);
 	Json::Value root;
    Json::Reader reader;
 
      bool parsedSuccess;
 
-struct evbuffer *evb = evbuffer_new();
+    struct evbuffer *evb = evbuffer_new();
 // Request
    struct evbuffer *requestBuffer;
    size_t requestLen;
@@ -113,23 +113,44 @@ struct evbuffer *evb = evbuffer_new();
        const Json::Value portInfo = root["port"];
        if(  portInfo.isObject() ){
     	   const Json::Value localPort = portInfo["local_port"];
-    	   const Json::Value destination = portInfo["destination"];
+    	   const Json::Value destinationCfg = portInfo["destination"];
+    	   const Json::Value middleCfg = portInfo["middle"];
     	   if( localPort.isNull() ){
     		   cout << "No port" << endl;
     		   response["Error"].append("Local port is not defined");
-    	   }else if( destination.isNull()){
+    	   }else if( destinationCfg.isNull()){
     		   cout << "No destination" << endl;
     		   response["Error"].append("Destination is not defined");
-    	   }else if( destination["port"].isNull()){
+    	   }else if( destinationCfg["port"].isNull()){
     		   cout << "No destination.port" << endl;
     		   response["Error"].append("Destination.port is not defined");
-    	   }else if( destination["address"].isNull()){
+    	   }else if( destinationCfg["address"].isNull()){
     		   cout << "No destination.address" << endl;
     		   response["Error"].append("Destination.address is not defined");
+    	   }else if( middleCfg["address"].isNull()){
+			   cout << "No middle.address" << endl;
+			   response["Error"].append("middle.address is not defined");
+    	   }else if( middleCfg["port"].isNull()){
+			   cout << "No middle.port" << endl;
+			   response["Error"].append("middle.port is not defined");
+    	   }else if( middleCfg["user"].isNull()){
+			   cout << "No middle.user" << endl;
+			   response["Error"].append("middle.useris not defined");
+    	   }else if( middleCfg["password"].isNull()){
+			   cout << "No middle.password" << endl;
+			   response["Error"].append("middle.password is not defined");
     	   }else{
     		   cout << "Complete" << endl;
-    		   response["Success"] = "Tunnel created with success";
 
+
+    		   Address destination(destinationCfg["address"].asString(), destinationCfg["port"].asInt());
+    		   Address middle(middleCfg["address"].asString(),middleCfg["port"].asInt());
+    		   User middleUser(middleCfg["user"].asString(), middleCfg["password"].asString());
+    		   Tunnel *tunnel = new Tunnel(mem->getEventBase(),localPort.asInt(), destination, middle, middleUser);
+    		   tunnel->start();
+    		   //mem->addTunnel(string("tun"), tunnel);
+    		   response["Success"] = "Tunnel created with success";
+    		   event_base_dispatch(mem->getEventBase());
     	   }
        }else{
     	   response["Error"].append("Port map is not passed");
@@ -233,9 +254,11 @@ thread RequestHandler::start_server(){
 int
 RequestHandler::create_server(){
 	struct evhttp *http_server = NULL;
-	event_init();
+	struct evhttp_bound_socket *handle;
+	//event_init();
 
-	http_server = evhttp_start(ip_address.c_str(), port);
+	//http_server = evhttp_start(ip_address.c_str(), port);
+	http_server = evhttp_new(mem->getEventHTTPBase());
 	if (http_server == NULL) {
 	   fprintf(stderr, "Error starting comet server on port %d\n",
 	       port);
@@ -247,7 +270,44 @@ RequestHandler::create_server(){
 
 	/* XXX default handler */
 	evhttp_set_gencb(http_server, generic_request_handler, this);
-
-	fprintf(stderr, "Comet server started on port %d\n", port);
-	event_dispatch();  /* Brooom, brooom */
+	handle = evhttp_bind_socket_with_handle(http_server, ip_address.c_str(), port);
+	{
+			/* Extract and display the address we're listening on. */
+			struct sockaddr_storage ss;
+			evutil_socket_t fd;
+			ev_socklen_t socklen = sizeof(ss);
+			char addrbuf[128];
+			void *inaddr;
+			const char *addr;
+			int got_port = -1;
+			fd = evhttp_bound_socket_get_fd(handle);
+			memset(&ss, 0, sizeof(ss));
+			if (getsockname(fd, (struct sockaddr *)&ss, &socklen)) {
+				perror("getsockname() failed");
+				return 1;
+			}
+			if (ss.ss_family == AF_INET) {
+				got_port = ntohs(((struct sockaddr_in*)&ss)->sin_port);
+				inaddr = &((struct sockaddr_in*)&ss)->sin_addr;
+			} else if (ss.ss_family == AF_INET6) {
+				got_port = ntohs(((struct sockaddr_in6*)&ss)->sin6_port);
+				inaddr = &((struct sockaddr_in6*)&ss)->sin6_addr;
+			} else {
+				fprintf(stderr, "Weird address family %d\n",
+				    ss.ss_family);
+				return 1;
+			}
+			addr = evutil_inet_ntop(ss.ss_family, inaddr, addrbuf,
+			    sizeof(addrbuf));
+			if (addr) {
+				printf("Listening on %s:%d\n", addr, got_port);
+				//evutil_snprintf(uri_root, sizeof(uri_root),
+				//    "http://%s:%d",addr,got_port);
+			} else {
+				fprintf(stderr, "evutil_inet_ntop failed\n");
+				return 1;
+			}
+		}
+	event_base_dispatch(mem->getEventHTTPBase());
+	//event_dispatch();  /* Brooom, brooom */
 }

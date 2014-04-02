@@ -8,3 +8,4 @@ CMakeCache/*
 /bin
 /lib
 tests/gtest
+/Debug

@@ -23,7 +23,11 @@ int main(int argc, char **argv)
 	int port =8080;
 	SharedMemory *mem = new SharedMemory();
 	RequestHandler rh(mem, ip_addr, port);
+	mem->getEventBase();
+
 	thread thr1 = rh.start_server();
+
 	thr1.join();
+
 	return 0;
 }

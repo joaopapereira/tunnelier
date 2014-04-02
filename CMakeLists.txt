@@ -22,6 +22,7 @@ ENDIF()
 
 SET(LIBRARY_OUTPUT_PATH .)
 SET(EXECUTABLE_OUTPUT_PATH .)
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 
 #####################################
 ## Project name
@@ -32,6 +33,20 @@ PROJECT ( Tunnelier CXX )
 ## Include directories 
 INCLUDE_DIRECTORIES( include lib ${INSTALL_LIBS} ${INSTALL_INCS})
 ADD_DEFINITIONS( -std=c++11 )
+
+#####################################
+# Search for needed lib
+#####################################
+FIND_PACKAGE(Event REQUIRED)
+SET( LIBS ${LIBS} ${Event_LIBRARIES})
+FIND_PACKAGE(SSH REQUIRED)
+SET( LIBS ${LIBS} ${SSH_LIBRARIES})
+message("Writting the libs")
+message("${LIBS}")
+message("Writting the install libs")
+message(${INSTALL_LIBS})
+
+
 #####################################
 ## Folders to be build
 #####################################
@@ -43,14 +58,6 @@ if( compile_with_tests )
   ADD_SUBDIRECTORY( tests bin/tests)
 endif()
 
-
-#####################################
-# Search for needed lib
-#####################################
-FIND_LIBRARY(event REQUIRED)
-SET( LIBS ${LIBS} ${event})
-message(${LIBS})
-message(${INSTALL_LIBS})
 
 #####################################
 # Instalation section
