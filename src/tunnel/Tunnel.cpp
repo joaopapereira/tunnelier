@@ -335,6 +335,17 @@ Connection::start(){
 }
 void
 Connection::run(){
+
+	 while( 1 ){
+		 if (-1 == run_once())
+			 return;
+		 printf("Going to sleep....");
+		 sleep(1);
+	 }
+
+}
+int
+Connection::run_once(){
 	 int listenfd = 0, connfd = 0, read_size = 0, ret = 0;
 	 struct sockaddr_in serv_addr;
 	 ssh_session client_session;
@@ -349,11 +360,10 @@ Connection::run(){
 	 fd_set fds;
 	 struct timeval timeout;
 
-	 while( 1 ){
 		 printf("Reading form socket\n");
 		 fflush(stdout);
-		 timeout.tv_sec=1;
-		 timeout.tv_usec=0;
+		 timeout.tv_sec=0;
+		 timeout.tv_usec=1;
 		 do{
 			 read_size = read_from_socket( socket, sendBuff, sizeof(sendBuff), timeout );
 			 if(read_size > 0 ){
@@ -372,7 +382,7 @@ Connection::run(){
 		 if(signal_delayed)
 			 sizechanged(parent->forwarding_channel);
 		 if(ret==EINTR)
-			 continue;
+			 return 0;
 
 		 printf("Reading from channel\n");
 		 fflush(stdout);
@@ -381,7 +391,7 @@ Connection::run(){
 				 if(lus==-1){
 					 fprintf(stderr, "Error reading channel: %s\n",
 							 ssh_get_error(client_session));
-					 return;
+					 return -1;
 				 }
 				 if(lus==0){
 					 cerr << "channel closing...."<<endl;
@@ -391,12 +401,10 @@ Connection::run(){
 
 				   if (write(socket, sendBuff,lus) < 0) {
 					 fprintf(stderr, "Error writing to buffer\n");
-					 return;
+					 return -1;
 			   }
 		 }
-		 printf("Going to sleep....");
-		 sleep(1);
-	 }
+
 
 }
 

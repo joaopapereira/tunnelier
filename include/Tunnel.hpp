@@ -32,6 +32,7 @@ public:
 	void run();
 	void start();
 private:
+	int run_once();
 	Tunnel * parent;
 	int socket;
 };
