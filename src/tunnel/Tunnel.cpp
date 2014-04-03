@@ -10,6 +10,7 @@
 #include <string.h>
 using namespace std;
 int authenticate_kbdint(ssh_session session, const char *password);
+
 Tunnel::Tunnel(struct event_base *base, int localPort, Address destination, Address middle, User middleUser):
 	base(base),
 	localPort(localPort),
@@ -25,6 +26,7 @@ Tunnel::start(){
 	cout << "Starting tunnel"<< endl;
 	thr = new thread(&Tunnel::run, *this);
 }
+
 int
 Tunnel::run(){
 	struct sockaddr_in sin;
@@ -76,6 +78,8 @@ Tunnel::run(){
 
 
 
+
+
 	event_base_dispatch(base);
 	return true;
 }
@@ -110,6 +114,7 @@ Tunnel::do_accept(int errcode, short int addr, void *ptr) {
 
 }
 #else
+
 void
 Tunnel::accept_conn_cb(struct evconnlistener *listener,
     evutil_socket_t fd, struct sockaddr *address, int socklen,
@@ -117,6 +122,10 @@ Tunnel::accept_conn_cb(struct evconnlistener *listener,
 {
 	Tunnel *ctx = static_cast<Tunnel *>(ptr);
 	ssh_channel forwarding_channel;
+	struct timeval tv;
+
+	tv.tv_sec = 0;
+	tv.tv_usec = 10;
 	forwarding_channel = ssh_channel_new(ctx->tunnel_session);
 	if (forwarding_channel == NULL) {
 		return;
@@ -133,12 +142,28 @@ Tunnel::accept_conn_cb(struct evconnlistener *listener,
 
 	/* We got a new connection! Set up a bufferevent for it. */
 	struct event_base *base = evconnlistener_get_base(listener);
-	struct bufferevent *bev = bufferevent_socket_new(
-			ctx->base, fd, BEV_OPT_CLOSE_ON_FREE);
 	Connection *con = new Connection(ctx, fd, forwarding_channel);
-	bufferevent_setcb(bev, Connection::socket_to_ssh, NULL, Connection::errorcb, (void*)con);
+	con->socket_event = bufferevent_socket_new(
+			ctx->base, fd, BEV_OPT_CLOSE_ON_FREE);
 
-	bufferevent_enable(bev, EV_READ|EV_WRITE);
+	bufferevent_setcb(con->socket_event, Connection::socket_to_ssh, NULL, Connection::errorcb, (void*)con);
+	//bufferevent_setcb(ssh_get_fd(ctx->tunnel_session), Connection::socket_to_ssh, NULL, Connection::errorcb, (void*)con);
+
+	bufferevent_enable(con->socket_event, EV_READ|EV_WRITE);
+	con->ssh_event = evtimer_new(base, Connection::ssh_to_socket, (void*)con);
+	//evtimer_add(con->ssh_event, static_cast<const timeval*>(&tv));
+	//con->closed = false;
+
+	struct ssh_channel_callbacks_struct *channel_cb = new struct ssh_channel_callbacks_struct();
+
+	channel_cb->channel_data_function = &Connection::copy_chan_to_fd;
+	channel_cb->userdata = con;
+	ssh_callbacks_init(channel_cb);
+	ssh_set_channel_callbacks(forwarding_channel, channel_cb);
+
+
+	//con->ssh_event = event_new(base, -1, EV_PERSIST, Connection::ssh_to_socket, (void*)con);
+	//event_add(con->ssh_event, static_cast<const timeval*>(&tv));
 
 }
 void
@@ -271,6 +296,7 @@ Connection::~Connection() {
 void
 Connection::socket_to_ssh(struct bufferevent *bev, void *ctx){
 	cout << "Entered socket_to_ssh"<<endl;
+
 	Connection * con = static_cast<Connection *>(ctx);
 	char readBuff[MAX_READ];
 	int readLen;
@@ -279,10 +305,12 @@ Connection::socket_to_ssh(struct bufferevent *bev, void *ctx){
 		readBuff[readLen] = 0;
 		ssh_channel_write(con->fw_channel, readBuff, readLen);
 	}
+
+
 	cout << "Exit socket_to_ssh"<<endl;
 }
 void
-Connection::ssh_to_socket(struct bufferevent *bev, void *ctx){
+Connection::ssh_to_socket2(struct bufferevent *bev, void *ctx){
 	cout << "Entered ssh_to_socket"<<endl;
 	Connection * con = static_cast<Connection *>(ctx);
 	char readBuff[MAX_READ];
@@ -301,6 +329,37 @@ Connection::ssh_to_socket(struct bufferevent *bev, void *ctx){
 	}
 	cout << "Exit ssh_to_socket"<<endl;
 }
+void
+Connection::ssh_to_socket(int fd, short event, void *arg){
+	cout << "Entered ssh_to_socket"<<endl;
+	Connection * con = static_cast<Connection *>(arg);
+	char readBuff[MAX_READ];
+	int r;
+	int lus;
+	while(con->fw_channel && ssh_channel_is_open(con->fw_channel) && (r = ssh_channel_poll(con->fw_channel,0))!=0){
+	        lus=ssh_channel_read(con->fw_channel,readBuff,sizeof(readBuff) > r ? r : sizeof(readBuff),0);
+	        if(lus==-1){
+	            fprintf(stderr, "Error reading channel: %s\n",
+	                    ssh_get_error(con->fw_channel));
+	            goto RETRIGGER_TIMER;
+	        }
+	        if(lus!=0){
+	        	//evbuffer_add_printf(bufferevent_get_output(con->socket_event), "%s", readBuff);
+	        	write(con->socket, readBuff, lus);
+	        }
+	}
+	cout << "Exit ssh_to_socket"<<endl;
+RETRIGGER_TIMER:
+	if( con->closed )
+		return;
+	evtimer_del(con->ssh_event);
+	struct timeval tv;
+
+	tv.tv_sec = 0;
+	tv.tv_usec = 10;
+	con->ssh_event = evtimer_new(con->parent->base, Connection::ssh_to_socket, (void*)con);
+	evtimer_add(con->ssh_event, static_cast<const timeval*>(&tv));
+}
 
 
 void
@@ -312,6 +371,7 @@ Connection::errorcb(struct bufferevent *bev, short events, void *ctx)
         /* connection has been closed, do any clean up here */
     	cout << "Closing connection with:" << con->parent->destination.getHost()<<endl;
     	finished = 1;
+    	evtimer_del(con->ssh_event);
 
     } else if (events & BEV_EVENT_ERROR) {
         /* check errno to see what error occurred */
@@ -320,6 +380,7 @@ Connection::errorcb(struct bufferevent *bev, short events, void *ctx)
     } else if (events & BEV_EVENT_TIMEOUT) {
         /* must be a timeout event handle, handle it */
         /* ... */
+    	evtimer_del(con->ssh_event);
     }
 
     if (finished) {
@@ -327,4 +388,21 @@ Connection::errorcb(struct bufferevent *bev, short events, void *ctx)
         bufferevent_free(bev);
     }
     bufferevent_free(bev);
+}
+int
+Connection::copy_chan_to_fd(ssh_session session,
+                                           ssh_channel channel,
+                                           void *data,
+                                           uint32_t len,
+                                           int is_stderr,
+                                           void *userdata) {
+    Connection* con = static_cast<Connection *>(userdata);
+    int sz;
+    (void)session;
+    (void)channel;
+    (void)is_stderr;
+
+    sz = write(con->socket, data, len);
+    cout << "Copy_chan called"<<endl;
+    return sz;
 }
