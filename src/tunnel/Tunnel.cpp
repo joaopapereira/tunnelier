@@ -127,6 +127,7 @@ Tunnel::accept_conn_cb(struct evconnlistener *listener,
 	tv.tv_sec = 0;
 	tv.tv_usec = 10;
 	forwarding_channel = ssh_channel_new(ctx->tunnel_session);
+	ssh_set_log_level( SSH_LOG_TRACE );
 	if (forwarding_channel == NULL) {
 		return;
 	}
@@ -151,7 +152,7 @@ Tunnel::accept_conn_cb(struct evconnlistener *listener,
 
 	bufferevent_enable(con->socket_event, EV_READ|EV_WRITE);
 	con->ssh_event = evtimer_new(base, Connection::ssh_to_socket, (void*)con);
-	//evtimer_add(con->ssh_event, static_cast<const timeval*>(&tv));
+	evtimer_add(con->ssh_event, static_cast<const timeval*>(&tv));
 	//con->closed = false;
 
 	struct ssh_channel_callbacks_struct *channel_cb = new struct ssh_channel_callbacks_struct();
@@ -159,7 +160,7 @@ Tunnel::accept_conn_cb(struct evconnlistener *listener,
 	channel_cb->channel_data_function = &Connection::copy_chan_to_fd;
 	channel_cb->userdata = con;
 	ssh_callbacks_init(channel_cb);
-	ssh_set_channel_callbacks(forwarding_channel, channel_cb);
+	ssh_set_channel_callbacks(con->fw_channel, channel_cb);
 
 
 	//con->ssh_event = event_new(base, -1, EV_PERSIST, Connection::ssh_to_socket, (void*)con);
@@ -331,9 +332,9 @@ Connection::ssh_to_socket2(struct bufferevent *bev, void *ctx){
 }
 void
 Connection::ssh_to_socket(int fd, short event, void *arg){
-	cout << "Entered ssh_to_socket"<<endl;
+	//cout << "Entered ssh_to_socket"<<endl;
 	Connection * con = static_cast<Connection *>(arg);
-	char readBuff[MAX_READ];
+	/*char readBuff[MAX_READ];
 	int r;
 	int lus;
 	while(con->fw_channel && ssh_channel_is_open(con->fw_channel) && (r = ssh_channel_poll(con->fw_channel,0))!=0){
@@ -349,7 +350,8 @@ Connection::ssh_to_socket(int fd, short event, void *arg){
 	        }
 	}
 	cout << "Exit ssh_to_socket"<<endl;
-RETRIGGER_TIMER:
+RETRIGGER_TIMER:*/
+	ssh_channel_poll(con->fw_channel,0);
 	if( con->closed )
 		return;
 	evtimer_del(con->ssh_event);
