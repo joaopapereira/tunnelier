@@ -12,9 +12,10 @@
 #include <thread>
 #include <event.h>
 #include <libssh/libssh.h>
+#include <libssh/callbacks.h>
 #include <vector>
 #include <iostream>
-#define USE_LISTENER 0
+#define USE_LISTENER 1
 #if USE_LISTENER
 #include <event2/listener.h>
 #include <event2/bufferevent.h>
@@ -22,19 +23,30 @@
 #endif
 class Tunnel;
 class Connection {
+friend class Tunnel;
 public:
-	Connection( Tunnel* parent, int socket);
+	Connection( Tunnel* parent, int socket, ssh_channel fw_channel);
 	virtual ~Connection();
 	static void socket_to_ssh(struct bufferevent *bev, void *ctx);
-	static void ssh_to_socket(struct bufferevent *bev, void *ctx);
+	static void ssh_to_socket2(struct bufferevent *bev, void *ctx);
+	static void ssh_to_socket(int fd, short event, void *arg);
 	static void errorcb(struct bufferevent *bev, short error, void *ctx);
 	static int MAX_READ;
-	void run();
-	void start();
+
+	static int copy_chan_to_fd(ssh_session session,
+	                                           ssh_channel channel,
+	                                           void *data,
+	                                           uint32_t len,
+	                                           int is_stderr,
+	                                           void *userdata);
 private:
 	int run_once();
 	Tunnel * parent;
 	int socket;
+	ssh_channel fw_channel;
+	struct event * ssh_event;
+	struct bufferevent * socket_event;
+	bool closed;
 };
 
 class Tunnel{
@@ -79,6 +91,7 @@ private:
 	 */
 	bool stillRunning;
 	User middleUser;
+	std::thread *thr;
 	std::vector<Connection> tunnelConnections;
 #if USE_LISTENER
 	struct evconnlistener * listener;
