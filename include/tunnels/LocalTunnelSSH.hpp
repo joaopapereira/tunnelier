@@ -20,11 +20,12 @@ namespace tunnels {
 
 class LocalTunnelSSH{
 public:
-	LocalTunnelSSH(LocalSocket * local, SSHRemoteEndPoint *remote):
+	LocalTunnelSSH(LocalSocket * local, SSHRemoteEndPoint *remote, struct event *connectionEndEvent):
 		local(local),
 		remote(remote),
 		managerBase(nullptr),
-		channel_to_socket_event(nullptr){
+		channel_to_socket_event(nullptr),
+		connectionEnd(connectionEndEvent){
 		//remote->setReadCallback(this->copy_chan_to_fd, this);
 		remote->setReadCallBack(this->channel_to_socket, this);
 	};
@@ -107,6 +108,7 @@ public:
 		if (finished) {
 			bufferevent_free(bev);
 			// TODO: Missing code to move the tunnel back to free
+			event_active(con->connectionEnd, EV_READ, 0);
 		}
 
 		std::cout << "Ended errorcb"<<std::endl;
@@ -165,6 +167,7 @@ private:
 	LocalSocket *local;
 	SSHRemoteEndPoint *remote;
 	struct event *channel_to_socket_event;
+	struct event *connectionEnd;
 };
 } /* namespace tunnels */
 } /* namespace tunnelier */

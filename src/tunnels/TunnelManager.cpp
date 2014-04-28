@@ -165,22 +165,27 @@ void  TunnelManager::acceptFromListener_cb(struct evconnlistener *listener,
 
 	tunnels::LocalSocket *localSocket = new tunnels::LocalSocket(fd, worker->getEventBase());
 	worker->addWork();
-	w1 = manager->nextAvailableWorker();
 	//if( it == manager->freeTunnels.end()){
 	if(sshTunnel == nullptr){
 		std::cout <<"Creating new fw channel!"<<std::endl;
 		tunnels::SSHRemoteEndPoint * sshEndPoint;
 		try{
 			tunnels::SSHConnection* tunnel = manager->openConnections.at(std::make_tuple(std::get<0>(res), std::get<1>(res)));
-			sshEndPoint = tunnel->createEndPoint(std::get<2>(res), w1->getEventBase());
-			w1->addWork();
+			sshEndPoint = tunnel->createEndPoint(std::get<2>(res), worker->getEventBase());
 		}catch(std::out_of_range &e){
 			std::cout << "Connection not created!....." << e.what() << std::endl;
 			delete localSocket;
 			worker->removeWork();
 			return;
 		}
-		sshTunnel = new tunnels::LocalTunnelSSH(localSocket, sshEndPoint);
+		ManagerTunnelWorker * container = new ManagerTunnelWorker();
+		container->event = event_new(worker->getEventBase(), -1, EV_READ, localSocketClose, container);
+		event_add(container->event, nullptr);
+		container->manager = manager;
+		container->worker = worker;
+		sshTunnel = new tunnels::LocalTunnelSSH(localSocket, sshEndPoint, container->event);
+		container->localSocket = sshTunnel;
+
 	}else{
 		std::cout <<"Using fw channel already open!"<<std::endl;
 				sshTunnel->setLocalSocket(localSocket);
@@ -189,11 +194,31 @@ void  TunnelManager::acceptFromListener_cb(struct evconnlistener *listener,
 	localSocket->setReadCallBack(sshTunnel->socket_to_ssh);
 	localSocket->setErrorCallBack(sshTunnel->errorcb);
 	localSocket->bindSocket(sshTunnel);
+
 	manager->activeTunnels.push_back(sshTunnel);
 }
 void
 TunnelManager::acceptError_cb(struct evconnlistener *listener, void *ctx){
 	Manager_SocketListener * arg = static_cast<Manager_SocketListener*>(ctx);
 	std::cout << "Error puff"<<std::endl;
+}
+void
+TunnelManager::localSocketClose(int socket_id, short event, void * ctx){
+	ManagerTunnelWorker * container = static_cast<ManagerTunnelWorker *>(ctx);
+	std::lock_guard<std::mutex> lock(container->manager->mutex);
+	std::cout << "Entered localSocketClose" << std::cout;
+	auto it = find(container->manager->activeTunnels.begin(),
+				   container->manager->activeTunnels.end(),
+				   container->localSocket);
+	if( it == container->manager->activeTunnels.end()){
+		std::cout << "Something strange happened closing tunnel is not in the active lot...." << std::endl;
+		free(container->localSocket);
+
+	}else{
+		container->manager->activeTunnels.erase(it);
+		container->manager->freeTunnels.push_back(container->localSocket);
+	}
+	container->worker->removeWork();
+	std::cout << "Ended localSocketClose" << std::cout;
 }
 } /* namespace tunnelier */

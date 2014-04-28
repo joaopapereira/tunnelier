@@ -66,12 +66,15 @@ LocalSocket::writeToEndPoint(void* data, int length){
 #endif
 void
 LocalSocket::bindSocket( void * arguments){
+	std::cout << "Start binding socket" << std::endl;
 #if !USE_UNIX_SOCKET
 	bufferevent_setcb(socket_event, readCallBack, NULL, errorCallBack, arguments);
+	std::cout << "Enable Events" << std::endl;
 	bufferevent_enable(socket_event, EV_READ|EV_WRITE);
 #else
 	event_assign(socket_event, workerEventBase, socket_id, EV_READ, readCallBack, arguments);
 #endif
+	std::cout << "End binding socket" << std::endl;
 }
 
 int

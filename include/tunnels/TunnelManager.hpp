@@ -33,6 +33,12 @@ typedef struct {
 	TunnelManager * manager;
 	tunnels::SocketListener * listener;
 } Manager_SocketListener;
+typedef struct{
+	TunnelManager * manager;
+	tunnels::LocalTunnelSSH *localSocket;
+	tunnels::TunnelWorker * worker;
+	struct event* event;
+} ManagerTunnelWorker;
 class TunnelManager {
 public:
 	/**
@@ -58,6 +64,7 @@ public:
 		    evutil_socket_t fd, struct sockaddr *address, int socklen,
 		    void *ctx);
 	static void acceptError_cb(struct evconnlistener *listener, void *ctx);
+	static void localSocketClose(int socket_id, short event, void * ctx);
 private:
 
 	std::vector<tunnels::LocalTunnelSSH* > freeTunnels;
