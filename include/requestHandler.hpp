@@ -10,20 +10,25 @@
 #include <string>
 #include <thread>
 #include "SharedMemory.h"
-#include "Tunnel.hpp"
-#include "Address.hpp"
-#include "User.hpp"
+#include "tunnels/TunnelManager.hpp"
 class RequestHandler{
 public:
-	RequestHandler(SharedMemory *memory, std::string ip, int port)
-		:ip_address(ip), port(port){
+	RequestHandler(SharedMemory *memory, tunnelier::TunnelManager *manager, std::string ip, int port)
+		:ip_address(ip),
+		 port(port),
+		 mem(memory),
+		 manager(manager){
 		mem = memory;
 	};
 	std::thread start_server();
 	int create_server();
+	inline tunnelier::TunnelManager * getManager(){
+		return manager;
+	}
 private:
 
 	SharedMemory *mem;
+	tunnelier::TunnelManager *manager;
 	std::string ip_address;
 	int port;
 

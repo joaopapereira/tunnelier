@@ -10,6 +10,7 @@
 
 class User{
 public:
+	User(){};
 	/**
 	 * Class constructor
 	 * @param username Username to use why connecting
@@ -29,6 +30,27 @@ public:
 	 */
 	std::string getPassword(){
 		return password;
+	};
+	/**
+	 * Compare two users
+	 * @param rhs User to compare against
+	 * @return true if they are equal
+	 *         false otherwise
+	 */
+	inline bool operator==(const User& rhs){
+		return (0==username.compare(rhs.username)) &&
+			   (0==password.compare(rhs.password));
+	};
+	/**
+	 * Compare two users
+	 * @param rhs User to compare against
+	 * @return true if they are equal
+	 *         false otherwise
+	 */
+	friend inline bool operator< (const User & s1, const User & s2){
+
+		return (s1.username.size()+s1.password.size()) <
+				(s2.username.size()+s2.password.size());
 	};
 private:
 	/**

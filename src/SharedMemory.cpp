@@ -9,18 +9,17 @@
 #include <iostream>
 
 SharedMemory::SharedMemory()
-	:base(nullptr),
-	 tunnels(){
+	:base(nullptr){
 	// TODO Auto-generated constructor stub
-	tunnels = {};
+
 }
 
 SharedMemory::~SharedMemory() {
 	// TODO Auto-generated destructor stub
 }
 
-void
-SharedMemory::addTunnel(const std::string &name, Tunnel * tunnel){
+/*void
+SharedMemory::addTunnel(const std::string &name, Tunnelv1 * tunnel){
 	std::cout << "Adding " << name << std::endl;
 	tunnels.push_back(tunnel);
-}
+}*/

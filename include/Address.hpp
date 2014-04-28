@@ -11,6 +11,7 @@
 
 class Address{
 public:
+	Address(){};
 	/**
 	 * Class constructor
 	 * @param host Hostname or IP used to identify the address
@@ -31,7 +32,27 @@ public:
 	int getPort(){
 		return port;
 	};
+	/**
+	 * Compare two users
+	 * @param rhs User to compare against
+	 * @return true if they are equal
+	 *         false otherwise
+	 */
+	inline bool operator==(const Address& rhs){
+		return (0==host.compare(rhs.host)) &&
+			   (port==rhs.port);
+	};
+	/**
+	 * Compare two users
+	 * @param rhs User to compare against
+	 * @return true if they are equal
+	 *         false otherwise
+	 */
+	friend inline bool operator< (const Address & s1, const Address & s2){
 
+		return (s1.host.size()+s1.port) <
+				(s2.host.size()+s2.port);
+	};
 private:
 	/**
 	 * Hostname or IP of the address

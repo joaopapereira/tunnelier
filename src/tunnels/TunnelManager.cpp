@@ -1,0 +1,199 @@
+/*
+ * TunnelManager.cpp
+ *
+ *  Created on: Apr 11, 2014
+ *      Author: joao
+ */
+
+#include "tunnels/TunnelManager.hpp"
+#include <algorithm>
+#include <iostream>
+
+
+namespace tunnelier {
+using namespace tunnels;
+
+TunnelManager::TunnelManager(int numberWorkers) {
+	for( int i = 0 ; i < numberWorkers; i++ ){
+		workers.push_back((new tunnels::TunnelWorker())->start());
+	}
+	tunnels::TunnelWorker * w = workers.at(0);
+	std::cout << "Tunnels starting" << std::endl;
+	tv.tv_sec = 1;
+	sleep(1);
+	tv.tv_sec = 1;
+	tv.tv_usec = 0;
+	std::cout << "Going to add to the base: " << w->getEventBase()  << std::endl;
+	poll_event = evtimer_new(w->getEventBase(), TunnelManager::poolTunnels, (void*)this);
+	w->addWork();
+	//event_assign(poll_event, w->getEventBase(), -1, flags, timeout_cb, (void*) this);
+	//evtimer_add(ssh_event, static_cast<const timeval*>(&tv));
+	evtimer_add(poll_event, static_cast<const timeval*>(&tv));
+
+}
+
+TunnelManager::~TunnelManager() {
+	// TODO Auto-generated destructor stub
+	for(auto t: openListeners){
+		delete std::get<1>(t);
+	}
+	event_del(poll_event);
+	for(tunnels::TunnelWorker * w: workers){
+		w->stop_join();
+		delete w;
+	}
+	workers.clear();
+	for(auto tunnel: activeTunnels){
+		delete tunnel;
+	}
+	activeTunnels.clear();
+	for(auto tunnel: freeTunnels){
+		delete tunnel;
+	}
+	freeTunnels.clear();
+}
+
+
+
+int TunnelManager::createTunnel(int localPort, Address middleAddress,
+		User middleUser, Address destination) {
+	std::lock_guard<std::mutex> lock(mutex);
+	std::cout << "Create Tunnel!!" << std::endl;
+	if( 0 == createListener(localPort, destination) ){
+		if( isSSHConnectionOpen( middleAddress, middleUser) )
+			return 0;
+		if( 0 == createSSHConnection( middleAddress, middleUser) ){
+			tunnelLink[localPort] = std::make_tuple(middleAddress, middleUser, destination);
+			return 0;
+		}
+		SocketListener * listener = openListeners[localPort];
+		openListeners.erase(localPort);
+		delete listener;
+		return -2;
+	}
+	return -1;
+}
+
+int TunnelManager::createListener(int localPort,
+		Address destination) {
+	std::cout << "Create Listener!!" << std::endl;
+	try{
+		openListeners.at(localPort);
+		return -1;
+	}catch(std::out_of_range &e){}
+	TunnelWorker* worker = nextAvailableWorker();
+	if( nullptr == worker )
+		return -2;
+	SocketListener * listener = new SocketListener( worker->getEventBase(), localPort);
+	worker->addWork();
+	if( nullptr == listener)
+		return -3;
+	listener->setAcceptCallBack(acceptFromListener_cb);
+	listener->setErrorCallBack(acceptError_cb);
+	Manager_SocketListener *aux = new Manager_SocketListener();
+	aux->manager = this;
+	aux->listener = listener;
+	listener->bind(aux);
+	openListeners[localPort] = listener;
+
+	return 0;
+}
+
+int TunnelManager::createSSHConnection(Address host, User user) {
+	std::cout << "Create SSHConnection!!" << std::endl;
+	if( isSSHConnectionOpen(host, user))
+		return 0;
+	SSHConnection * connection = new SSHConnection(host, user);
+	if( 0 == connection->connect() ){
+		openConnections[std::make_tuple(host,user)] = connection;
+		return 0;
+	}
+	return -1;
+}
+
+bool TunnelManager::isSSHConnectionOpen(Address host, User user) {
+	try{
+		openConnections.at(std::make_pair(host,user));
+		return true;
+	}catch(std::out_of_range &e){}
+	return false;
+}
+
+TunnelWorker* TunnelManager::nextAvailableWorker() {
+	sort(workers.begin(), workers.end(), [](TunnelWorker * a, TunnelWorker * b) {
+		return b->getCurrentAmountOfWork() > a->getCurrentAmountOfWork();
+	});
+	return *workers.begin();
+}
+
+
+void TunnelManager::poolTunnels(int fd, short event, void* arg) {
+	TunnelManager * manager = static_cast<TunnelManager*>(arg);
+	std::lock_guard<std::mutex> lock(manager->mutex);
+	//std::cout << "Going to poll!!!"<<std::endl;
+	for(auto tunnel: manager->activeTunnels){
+		if( 1 == tunnel->poll() ){
+			TunnelWorker * w = manager->nextAvailableWorker();
+			event_base_once(w->getEventBase(), 1, EV_READ, tunnel->channel_to_socket, tunnel, nullptr);
+		}
+			
+	}
+	evtimer_add(manager->poll_event, static_cast<const timeval*>(&(manager->tv)));
+}
+
+void  TunnelManager::acceptFromListener_cb(struct evconnlistener *listener,
+		    evutil_socket_t fd, struct sockaddr *address, int socklen,
+		    void *ctx){
+	Manager_SocketListener * arg = static_cast<Manager_SocketListener*>(ctx);
+	std::cout << "Received connection :D"<< std::endl;
+	TunnelManager * manager = arg->manager;
+	SocketListener * listen = arg->listener;
+	auto res = manager->tunnelLink[listen->getLocalPort()];
+	SSHRemoteEndPoint endpoint(std::get<0>(res), std::get<1>(res), std::get<2>(res));
+	TunnelWorker * worker = manager->nextAvailableWorker();
+	TunnelWorker * w1;
+	//auto it = std::find(manager->freeTunnels.begin(), manager->freeTunnels.end(),&endpoint);
+	tunnels::LocalTunnelSSH * sshTunnel = nullptr;
+	auto delCursor = manager->freeTunnels.begin();
+	for(auto it: manager->freeTunnels ){
+		if(*static_cast<SSHRemoteEndPoint*>(it->getRemoteEndPoint()) == endpoint){
+			sshTunnel = it;
+			break;
+		}
+		delCursor++;
+	}
+
+	tunnels::LocalSocket *localSocket = new tunnels::LocalSocket(fd, worker->getEventBase());
+	worker->addWork();
+	w1 = manager->nextAvailableWorker();
+	//if( it == manager->freeTunnels.end()){
+	if(sshTunnel == nullptr){
+		std::cout <<"Creating new fw channel!"<<std::endl;
+		tunnels::SSHRemoteEndPoint * sshEndPoint;
+		try{
+			tunnels::SSHConnection* tunnel = manager->openConnections.at(std::make_tuple(std::get<0>(res), std::get<1>(res)));
+			sshEndPoint = tunnel->createEndPoint(std::get<2>(res), w1->getEventBase());
+			w1->addWork();
+		}catch(std::out_of_range &e){
+			std::cout << "Connection not created!....." << e.what() << std::endl;
+			delete localSocket;
+			worker->removeWork();
+			return;
+		}
+		sshTunnel = new tunnels::LocalTunnelSSH(localSocket, sshEndPoint);
+	}else{
+		std::cout <<"Using fw channel already open!"<<std::endl;
+				sshTunnel->setLocalSocket(localSocket);
+		manager->freeTunnels.erase(delCursor);
+	}
+	localSocket->setReadCallBack(sshTunnel->socket_to_ssh);
+	localSocket->setErrorCallBack(sshTunnel->errorcb);
+	localSocket->bindSocket(sshTunnel);
+	manager->activeTunnels.push_back(sshTunnel);
+}
+void
+TunnelManager::acceptError_cb(struct evconnlistener *listener, void *ctx){
+	Manager_SocketListener * arg = static_cast<Manager_SocketListener*>(ctx);
+	std::cout << "Error puff"<<std::endl;
+}
+} /* namespace tunnelier */

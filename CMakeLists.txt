@@ -32,7 +32,7 @@ PROJECT ( Tunnelier CXX )
 #####################################
 ## Include directories 
 INCLUDE_DIRECTORIES( include lib ${INSTALL_LIBS} ${INSTALL_INCS})
-ADD_DEFINITIONS( -std=c++11 )
+ADD_DEFINITIONS( -std=c++11 -DUSE_DEBUG )
 
 #####################################
 # Search for needed lib
@@ -51,7 +51,7 @@ message(${INSTALL_LIBS})
 ## Folders to be build
 #####################################
 ADD_SUBDIRECTORY( src/jsoncpp lib )
-ADD_SUBDIRECTORY( src/tunnel lib )
+ADD_SUBDIRECTORY( src/tunnels lib )
 ADD_SUBDIRECTORY( src bin )
 #ADD_SUBDIRECTORY( exampleProgram bin )
 if( compile_with_tests )
@@ -108,13 +108,13 @@ endif()
 #####################################
 # add a target to generate API documentation with Doxygen
 #####################################
-#find_package(Doxygen)
-#if(DOXYGEN_FOUND)
-#	configure_file(${CMAKE_CURRENT_SOURCE_DIR}/doc/thrpool.dox.in ${CMAKE_CURRENT_BINARY_DIR}/doc/thrpool.dox @ONLY)
-#	add_custom_target(docs
-#			${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/doc/thrpool.dox
-#			WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-#			COMMENT "Generating Semaphore documentation with Doxygen" VERBATIM
-#)
-#endif(DOXYGEN_FOUND)
+find_package(Doxygen)
+if(DOXYGEN_FOUND)
+	configure_file(${CMAKE_CURRENT_SOURCE_DIR}/doc/tunnelier.dox.in ${CMAKE_CURRENT_BINARY_DIR}/doc/tunnelier.dox @ONLY)
+	add_custom_target(docs
+			${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/doc/thrpool.dox
+			WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+			COMMENT "Generating Tunnelier documentation with Doxygen" VERBATIM
+)
+endif(DOXYGEN_FOUND)
 #

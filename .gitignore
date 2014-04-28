@@ -9,3 +9,6 @@ CMakeCache/*
 /lib
 tests/gtest
 /Debug
+/doc/docs
+doc/tunnelier.dox
+tmp/

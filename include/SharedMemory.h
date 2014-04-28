@@ -9,7 +9,7 @@
 #define SHAREDMEMORY_H_
 #include <vector>
 #include <event.h>
-#include "Tunnel.hpp"
+//#include "Tunnel.hpp"
 class SharedMemory {
 public:
 	SharedMemory();
@@ -24,11 +24,11 @@ public:
 				http_base = event_base_new();
 			return http_base;
 		};
-	void addTunnel(const std::string &name, Tunnel * tunnel);
+	//void addTunnel(const std::string &name, Tunnelv1 * tunnel);
 private:
 	struct event_base *http_base;
 	struct event_base *base;
-	std::vector<Tunnel*> tunnels;
+	//std::vector<Tunnelv1*> tunnels;
 
 };
 

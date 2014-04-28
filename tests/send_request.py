@@ -2,6 +2,7 @@ import json
 from optparse import OptionParser
 import urllib2
 import sys
+sample = """{"port":{"local_port": 5000, "destination":{"port": 22, "address": "localhost"}, "middle":{"address":"localhost", "port": 22,"user":"","password":""}}}"""
 usage = "usage: %prog [options] action to_send expected"
 parser = OptionParser(usage = usage)
 parser.add_option("-a", "--address", dest="server_address",
