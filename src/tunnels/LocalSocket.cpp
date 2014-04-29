@@ -23,8 +23,8 @@ LocalSocket::LocalSocket(int socket_fd, struct event_base * workerEventBase):
 	std::cout << "Creating LocalSocket for fd:"<<socket_fd<<std::endl;
 	std::cout << "LocalMy worker is " << workerEventBase << std::endl;
 #if !USE_UNIX_SOCKET
-	socket_event = bufferevent_socket_new(
-			workerEventBase, socket_fd, BEV_OPT_CLOSE_ON_FREE|BEV_OPT_THREADSAFE|BEV_OPT_DEFER_CALLBACKS|BEV_OPT_UNLOCK_CALLBACKS );
+	/*socket_event = bufferevent_socket_new(
+			workerEventBase, socket_fd, BEV_OPT_CLOSE_ON_FREE|BEV_OPT_THREADSAFE|BEV_OPT_DEFER_CALLBACKS|BEV_OPT_UNLOCK_CALLBACKS );*/
 #else
 	socket_event = event_new(workerEventBase, socket_fd, EV_READ, nullptr, nullptr);
 #endif
@@ -32,7 +32,8 @@ LocalSocket::LocalSocket(int socket_fd, struct event_base * workerEventBase):
 }
 LocalSocket::~LocalSocket(){
 #if !USE_UNIX_SOCKET
-	bufferevent_free(socket_event);
+	/*if( nullptr != socket_event)
+		bufferevent_free(socket_event);*/
 #else
 	close(socket_id);
 	event_free(socket_event);
@@ -68,6 +69,8 @@ void
 LocalSocket::bindSocket( void * arguments){
 	std::cout << "Start binding socket" << std::endl;
 #if !USE_UNIX_SOCKET
+	socket_event = bufferevent_socket_new(
+				workerEventBase, socket_id, BEV_OPT_CLOSE_ON_FREE|BEV_OPT_THREADSAFE|BEV_OPT_DEFER_CALLBACKS|BEV_OPT_UNLOCK_CALLBACKS );
 	bufferevent_setcb(socket_event, readCallBack, NULL, errorCallBack, arguments);
 	std::cout << "Enable Events" << std::endl;
 	bufferevent_enable(socket_event, EV_READ|EV_WRITE);

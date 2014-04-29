@@ -38,6 +38,7 @@ typedef struct{
 	tunnels::LocalTunnelSSH *localSocket;
 	tunnels::TunnelWorker * worker;
 	struct event* event;
+	tunnels::SSHConnection * sshConnection;
 } ManagerTunnelWorker;
 class TunnelManager {
 public:
@@ -55,7 +56,7 @@ public:
 	int createTunnel(int localPort, Address middleAddress, User middleUser, Address destination);
 	int createListener(int localPort, Address destination );
 	int createSSHConnection( Address host, User user);
-	bool isSSHConnectionOpen( Address host, User user);
+	int isSSHConnectionOpen( Address host, User user);
 	tunnels::TunnelWorker * nextAvailableWorker();
 	void link(int localPort, tunnels::SocketListener* listener);
 
@@ -69,7 +70,7 @@ private:
 
 	std::vector<tunnels::LocalTunnelSSH* > freeTunnels;
 	std::vector<tunnels::LocalTunnelSSH*> activeTunnels;
-	std::map<std::tuple<Address,User>,tunnels::SSHConnection*> openConnections;
+	std::map<std::tuple<Address,User>,std::vector<tunnels::SSHConnection*>> openConnections;
 	std::unordered_map<int, tunnels::SocketListener*> openListeners;
 	std::unordered_map<int,std::tuple<Address,User,Address>> tunnelLink;
 	std::vector<tunnels::TunnelWorker * > workers;

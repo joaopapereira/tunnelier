@@ -34,6 +34,13 @@ SSHRemoteEndPoint::SSHRemoteEndPoint(Address middleHost, User middleUser, Addres
 	std::cout << "My worker is " << workerEventBase << std::endl;
 }
 SSHRemoteEndPoint::~SSHRemoteEndPoint() {
+	if(nullptr != channel){
+		if(channel && ssh_channel_is_open(channel) )
+			ssh_channel_close(channel);
+		ssh_channel_free(channel);
+	}
+	if(nullptr != socket_event)
+		event_free(socket_event);
 }
 
 int SSHRemoteEndPoint::poll() {

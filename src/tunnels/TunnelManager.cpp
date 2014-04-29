@@ -60,8 +60,10 @@ int TunnelManager::createTunnel(int localPort, Address middleAddress,
 	std::lock_guard<std::mutex> lock(mutex);
 	std::cout << "Create Tunnel!!" << std::endl;
 	if( 0 == createListener(localPort, destination) ){
-		if( isSSHConnectionOpen( middleAddress, middleUser) )
+		std::cout << "Check if connection is open" << std::endl;
+		if( 0 == isSSHConnectionOpen( middleAddress, middleUser) )
 			return 0;
+		std::cout << "Creating a new SSH Connection!" << std::endl;
 		if( 0 == createSSHConnection( middleAddress, middleUser) ){
 			tunnelLink[localPort] = std::make_tuple(middleAddress, middleUser, destination);
 			return 0;
@@ -69,8 +71,10 @@ int TunnelManager::createTunnel(int localPort, Address middleAddress,
 		SocketListener * listener = openListeners[localPort];
 		openListeners.erase(localPort);
 		delete listener;
+		std::cout << "Error executing the connect" << std::endl;
 		return -2;
 	}
+	std::cout << "Error creating Listener tunnel not created" << std::endl;
 	return -1;
 }
 
@@ -95,28 +99,35 @@ int TunnelManager::createListener(int localPort,
 	aux->listener = listener;
 	listener->bind(aux);
 	openListeners[localPort] = listener;
-
+	std::cout << "Listener created with success!" << std::endl;
 	return 0;
 }
 
 int TunnelManager::createSSHConnection(Address host, User user) {
 	std::cout << "Create SSHConnection!!" << std::endl;
-	if( isSSHConnectionOpen(host, user))
-		return 0;
-	SSHConnection * connection = new SSHConnection(host, user);
-	if( 0 == connection->connect() ){
-		openConnections[std::make_tuple(host,user)] = connection;
+	int result = isSSHConnectionOpen(host, user);
+	if( result > 0){
+		std::cout << "Is already open: " << result << std::endl;
 		return 0;
 	}
+	openConnections.insert(std::make_pair<std::tuple<Address,User>,std::vector<tunnels::SSHConnection*> >(std::make_tuple(host,user),std::vector<tunnels::SSHConnection*>()));
+	SSHConnection * connection = new SSHConnection(host, user);
+	if( 0 == connection->connect() ){
+		std::cout << "Connection created with success" << std::endl;
+		openConnections[std::make_tuple(host,user)].push_back(connection);
+		return 0;
+	}
+	std::cout << "Unable to create connection" << std::endl;
 	return -1;
 }
 
-bool TunnelManager::isSSHConnectionOpen(Address host, User user) {
+int TunnelManager::isSSHConnectionOpen(Address host, User user) {
 	try{
-		openConnections.at(std::make_pair(host,user));
-		return true;
+		auto vec = openConnections.at(std::make_pair(host,user));
+		return vec.size();
 	}catch(std::out_of_range &e){}
-	return false;
+	catch(...){}
+	return -1;
 }
 
 TunnelWorker* TunnelManager::nextAvailableWorker() {
@@ -169,16 +180,31 @@ void  TunnelManager::acceptFromListener_cb(struct evconnlistener *listener,
 	if(sshTunnel == nullptr){
 		std::cout <<"Creating new fw channel!"<<std::endl;
 		tunnels::SSHRemoteEndPoint * sshEndPoint;
+		tunnels::SSHConnection* tunnel = nullptr;
 		try{
-			tunnels::SSHConnection* tunnel = manager->openConnections.at(std::make_tuple(std::get<0>(res), std::get<1>(res)));
+			auto allTunnel = manager->openConnections.at(std::make_tuple(std::get<0>(res), std::get<1>(res)));
+			for( auto t1: allTunnel ){
+				if( t1->canCreateChannel()){
+					tunnel = t1;
+					break;
+				}
+			}
+			if( nullptr == tunnel )
+				tunnel = new tunnels::SSHConnection(std::get<0>(res), std::get<1>(res));
 			sshEndPoint = tunnel->createEndPoint(std::get<2>(res), worker->getEventBase());
 		}catch(std::out_of_range &e){
 			std::cout << "Connection not created!....." << e.what() << std::endl;
 			delete localSocket;
 			worker->removeWork();
 			return;
+		}catch( const std::ios_base::failure & e){
+			std::cout << "Connection not created!....." << e.what() << std::endl;
+			delete localSocket;
+			worker->removeWork();
+			return;
 		}
 		ManagerTunnelWorker * container = new ManagerTunnelWorker();
+		container->sshConnection = tunnel;
 		container->event = event_new(worker->getEventBase(), -1, EV_READ, localSocketClose, container);
 		event_add(container->event, nullptr);
 		container->manager = manager;
@@ -212,11 +238,13 @@ TunnelManager::localSocketClose(int socket_id, short event, void * ctx){
 				   container->localSocket);
 	if( it == container->manager->activeTunnels.end()){
 		std::cout << "Something strange happened closing tunnel is not in the active lot...." << std::endl;
-		free(container->localSocket);
+		//free(container->localSocket);
+		delete container->localSocket;
 
 	}else{
 		container->manager->activeTunnels.erase(it);
-		container->manager->freeTunnels.push_back(container->localSocket);
+		//container->manager->freeTunnels.push_back(container->localSocket);
+		delete container->localSocket;
 	}
 	container->worker->removeWork();
 	std::cout << "Ended localSocketClose" << std::cout;

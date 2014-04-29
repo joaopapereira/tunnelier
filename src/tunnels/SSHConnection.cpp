@@ -17,9 +17,21 @@ using namespace std;
 SSHConnection::SSHConnection(Address host, User user):
 	host(host),
 	user(user),
-	connection(ssh_new()){
+	connection(ssh_new()),
+	num_channels(0),
+	num_active_channels(0){
 }
-
+SSHConnection::SSHConnection(SSHConnection& original):
+		host(original.host),
+		user(original.user),
+		connection(ssh_new()),
+		num_channels(0),
+		num_active_channels(0){
+	int result = connect();
+	if( 0 > result ){
+		throw ios_base::failure("Unable to connect to the middle server!!");
+	}
+}
 int
 SSHConnection::connect() {
 	std::cout << "Entered connect_tunnel"<<std::endl;
@@ -143,7 +155,8 @@ SSHConnection::createEndPoint(Address destination, struct event_base * workerEve
 		return nullptr;
 	}
 
-
+	num_channels++;
+	num_active_channels++;
 	SSHRemoteEndPoint * endPoint = new SSHRemoteEndPoint(host, user, destination, forwarding_channel, workerEventBase);
 	return endPoint;
 }
