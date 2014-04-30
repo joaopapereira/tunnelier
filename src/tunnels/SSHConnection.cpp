@@ -62,6 +62,9 @@ SSHConnection::connect() {
 
 SSHConnection::~SSHConnection() {
 	// TODO Auto-generated destructor stub
+	if( 1 == ssh_is_connected(connection))
+		ssh_disconnect(connection);
+	ssh_free(connection);
 }
 int
 SSHConnection::authenticate_kbdint() {
@@ -143,20 +146,25 @@ SSHConnection::createEndPoint(Address destination, struct event_base * workerEve
 	forwarding_channel = ssh_channel_new(connection);
 
 	ssh_set_log_level( SSH_LOG_FUNCTIONS );
+	std::cout << "Creating SSHEndPoint" << std::endl;
 	if (forwarding_channel == NULL) {
+		std::cerr << "Channel creation error: " << ssh_get_error(connection) << std::endl;
 		return nullptr;
 	}
+	std::cout << "Opening forwarding port" << std::endl;
 	int rc = ssh_channel_open_forward(forwarding_channel,
 									destination.getHost().c_str(), destination.getPort(),
 									"localhost", 1);
 	if (rc != SSH_OK)
 	{
+		std::cerr << "Channel forward open: " << ssh_get_error(connection) << std::endl;
 		ssh_channel_free(forwarding_channel);
 		return nullptr;
 	}
 
 	num_channels++;
 	num_active_channels++;
+	std::cout << "Instanciate object" << std::endl;
 	SSHRemoteEndPoint * endPoint = new SSHRemoteEndPoint(host, user, destination, forwarding_channel, workerEventBase);
 	return endPoint;
 }

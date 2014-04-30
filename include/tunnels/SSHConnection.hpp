@@ -26,10 +26,15 @@ public:
 		return MAX_NUMBER_CHANNELS > num_channels;
 	};
 	inline bool canBeRemoved(){
-		return num_active_channels > 0;
+		return num_active_channels < 1 && !canCreateChannel();
 	};
 	inline void deactivatedChannel(){
 		num_active_channels--;
+	};
+	friend std::ostream& operator<<(std::ostream& os, const SSHConnection& con)
+	{
+	  os << con.user << "@" << con.host << ": " << con.num_channels << "/" << MAX_NUMBER_CHANNELS << " Currently active: " << con.num_active_channels;
+	  return os;
 	};
 private:
 	Address host;

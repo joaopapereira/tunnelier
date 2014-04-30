@@ -52,6 +52,11 @@ public:
 		return (s1.username.size()+s1.password.size()) <
 				(s2.username.size()+s2.password.size());
 	};
+	friend std::ostream& operator<<(std::ostream& os, const User& user)
+	{
+	  os << user.username;
+	  return os;
+	};
 private:
 	/**
 	 * Username

@@ -48,7 +48,7 @@ int SSHRemoteEndPoint::poll() {
 	int result = channel && \
 	ssh_channel_is_open(channel) &&
 	ssh_channel_poll(channel,0);
-	std::cout<< "Result is: " << result << std::endl;
+	//std::cout<< "Result is: " << result << std::endl;
 	if( result > 0 ){
 		std:: cout << "Scheduling!!!"<<std::endl;
 		event_add(socket_event, nullptr);

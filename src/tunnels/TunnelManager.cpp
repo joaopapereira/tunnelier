@@ -21,23 +21,41 @@ TunnelManager::TunnelManager(int numberWorkers) {
 	std::cout << "Tunnels starting" << std::endl;
 	tv.tv_sec = 1;
 	sleep(1);
-	tv.tv_sec = 1;
-	tv.tv_usec = 0;
+	tv.tv_sec = 0;
+	tv.tv_usec = 10;
 	std::cout << "Going to add to the base: " << w->getEventBase()  << std::endl;
 	poll_event = evtimer_new(w->getEventBase(), TunnelManager::poolTunnels, (void*)this);
 	w->addWork();
 	//event_assign(poll_event, w->getEventBase(), -1, flags, timeout_cb, (void*) this);
 	//evtimer_add(ssh_event, static_cast<const timeval*>(&tv));
+	w = this->nextAvailableWorker();
 	evtimer_add(poll_event, static_cast<const timeval*>(&tv));
+	stats_event = evtimer_new(w->getEventBase(), TunnelManager::stats, (void*)this);
+	w->addWork();
+	struct timeval tv1;
+	tv1.tv_sec = 30;
+	tv1.tv_usec = 0;
+	evtimer_add(stats_event, static_cast<const timeval*>(&tv1));
+	w = this->nextAvailableWorker();
+	cleanup_event = evtimer_new(w->getEventBase(), TunnelManager::cleanUp, (void*)this);
+	w->addWork();
+	tv1.tv_sec = 30;
+	tv1.tv_usec = 0;
+	evtimer_add(cleanup_event, static_cast<const timeval*>(&tv1));
 
 }
 
 TunnelManager::~TunnelManager() {
+	std::lock_guard<std::mutex> lock(mutex);
 	// TODO Auto-generated destructor stub
+	event_del(poll_event);
+	event_del(stats_event);
+	event_del(cleanup_event);
 	for(auto t: openListeners){
 		delete std::get<1>(t);
 	}
-	event_del(poll_event);
+
+
 	for(tunnels::TunnelWorker * w: workers){
 		w->stop_join();
 		delete w;
@@ -51,6 +69,10 @@ TunnelManager::~TunnelManager() {
 		delete tunnel;
 	}
 	freeTunnels.clear();
+
+	event_free(poll_event);
+	event_free(stats_event);
+	event_free(cleanup_event);
 }
 
 
@@ -180,31 +202,44 @@ void  TunnelManager::acceptFromListener_cb(struct evconnlistener *listener,
 	if(sshTunnel == nullptr){
 		std::cout <<"Creating new fw channel!"<<std::endl;
 		tunnels::SSHRemoteEndPoint * sshEndPoint;
-		tunnels::SSHConnection* tunnel = nullptr;
+		tunnels::SSHConnection* conn = nullptr;
 		try{
-			auto allTunnel = manager->openConnections.at(std::make_tuple(std::get<0>(res), std::get<1>(res)));
-			for( auto t1: allTunnel ){
+			auto allConnections = manager->openConnections.at(std::make_tuple(std::get<0>(res), std::get<1>(res)));
+			for( auto t1: allConnections){
+				std::cout <<"Connection is open check if channel can be created!"<<std::endl;
 				if( t1->canCreateChannel()){
-					tunnel = t1;
+					std::cout <<"Channel can be created!"<<std::endl;
+					conn = t1;
 					break;
 				}
 			}
-			if( nullptr == tunnel )
-				tunnel = new tunnels::SSHConnection(std::get<0>(res), std::get<1>(res));
-			sshEndPoint = tunnel->createEndPoint(std::get<2>(res), worker->getEventBase());
+			if( nullptr == conn ){
+				std::cout <<"New connection need to be established!"<<std::endl;
+				conn = new tunnels::SSHConnection(std::get<0>(res), std::get<1>(res));
+				if( 0 == conn->connect() ){
+					std::cout << "Connection created with success" << std::endl;
+					manager->openConnections[std::make_tuple(std::get<0>(res), std::get<1>(res))].push_back(conn);
+				}else
+					throw std::ios_base::failure("Unable to create new connection");
+			}
+			std::cout <<"Creating new End Point"<<std::endl;
+			sshEndPoint = conn->createEndPoint(std::get<2>(res), worker->getEventBase());
+			if( nullptr == sshEndPoint ){
+				throw std::ios_base::failure("Error creating SSH Channel!!!");
+			}
 		}catch(std::out_of_range &e){
 			std::cout << "Connection not created!....." << e.what() << std::endl;
 			delete localSocket;
 			worker->removeWork();
 			return;
 		}catch( const std::ios_base::failure & e){
-			std::cout << "Connection not created!....." << e.what() << std::endl;
+			std::cout << "Connection not created1!....." << e.what() << std::endl;
 			delete localSocket;
 			worker->removeWork();
 			return;
 		}
 		ManagerTunnelWorker * container = new ManagerTunnelWorker();
-		container->sshConnection = tunnel;
+		container->sshConnection = conn;
 		container->event = event_new(worker->getEventBase(), -1, EV_READ, localSocketClose, container);
 		event_add(container->event, nullptr);
 		container->manager = manager;
@@ -222,17 +257,18 @@ void  TunnelManager::acceptFromListener_cb(struct evconnlistener *listener,
 	localSocket->bindSocket(sshTunnel);
 
 	manager->activeTunnels.push_back(sshTunnel);
+	std::cout <<"New connection accepted"<<std::endl;
 }
 void
 TunnelManager::acceptError_cb(struct evconnlistener *listener, void *ctx){
 	Manager_SocketListener * arg = static_cast<Manager_SocketListener*>(ctx);
-	std::cout << "Error puff"<<std::endl;
+	std::cout << "Error puff"<<std::endl<< std::flush;
 }
 void
 TunnelManager::localSocketClose(int socket_id, short event, void * ctx){
 	ManagerTunnelWorker * container = static_cast<ManagerTunnelWorker *>(ctx);
 	std::lock_guard<std::mutex> lock(container->manager->mutex);
-	std::cout << "Entered localSocketClose" << std::cout;
+	std::cout << "Entered localSocketClose " << std::endl << std::flush;
 	auto it = find(container->manager->activeTunnels.begin(),
 				   container->manager->activeTunnels.end(),
 				   container->localSocket);
@@ -247,6 +283,47 @@ TunnelManager::localSocketClose(int socket_id, short event, void * ctx){
 		delete container->localSocket;
 	}
 	container->worker->removeWork();
-	std::cout << "Ended localSocketClose" << std::cout;
+	container->sshConnection->deactivatedChannel();
+	std::cout << "Ended localSocketClose" << std::endl<< std::flush;
+}
+
+void TunnelManager::stats(int fd, short event, void* arg) {
+	struct timeval tv1;
+	tv1.tv_sec = 30;
+	tv1.tv_usec = 0;
+	TunnelManager * manager = static_cast<TunnelManager*>(arg);
+	std::lock_guard<std::mutex> lock(manager->mutex);
+	std::cout << "Number of active connections destinations: "<< manager->openConnections.size() << std::endl;
+	for(auto connVec: manager->openConnections){
+		for( auto con: std::get<1>(connVec))
+			std::cout << "  Active connection:" << *con << std::endl;
+	}
+	std::cout << "Number of active tunnels: "<< manager->activeTunnels.size() << std::endl;
+	std::cout << "Number of active un used Tunnels: "<< manager->freeTunnels.size() << std::endl;
+	std::cout << std::flush;
+	evtimer_add(manager->stats_event, static_cast<const timeval*>(&tv1));
+}
+void TunnelManager::cleanUp(int fd, short event, void* arg) {
+	struct timeval tv1;
+	tv1.tv_sec = 30;
+	tv1.tv_usec = 0;
+	TunnelManager * manager = static_cast<TunnelManager*>(arg);
+	std::lock_guard<std::mutex> lock(manager->mutex);
+	int totalSSHConnectionsClean = 0;
+	for(auto connVector: manager->openConnections ){
+		std::vector<tunnels::SSHConnection*> newVec;
+		for( auto connection: std::get<1>(connVector)){
+			if( connection->canBeRemoved() ){
+				delete connection;
+				totalSSHConnectionsClean++;
+			}else{
+				newVec.push_back(connection);
+			}
+		}
+		manager->openConnections[std::get<0>(connVector)] = newVec;
+
+	}
+	std::cout << "Cleanup " << totalSSHConnectionsClean << " unused SSH connections!" <<std::endl;
+	evtimer_add(manager->cleanup_event, static_cast<const timeval*>(&tv1));
 }
 } /* namespace tunnelier */

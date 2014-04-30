@@ -54,6 +54,7 @@ public:
 	 *
 	 */
 	int createTunnel(int localPort, Address middleAddress, User middleUser, Address destination);
+	int closeTunnel(int localPort, bool forceClose);
 	int createListener(int localPort, Address destination );
 	int createSSHConnection( Address host, User user);
 	int isSSHConnectionOpen( Address host, User user);
@@ -61,11 +62,13 @@ public:
 	void link(int localPort, tunnels::SocketListener* listener);
 
 	static void poolTunnels(int fd, short event, void *arg);
+	static void stats(int fd, short event, void *arg);
 	static void acceptFromListener_cb(struct evconnlistener *listener,
 		    evutil_socket_t fd, struct sockaddr *address, int socklen,
 		    void *ctx);
 	static void acceptError_cb(struct evconnlistener *listener, void *ctx);
 	static void localSocketClose(int socket_id, short event, void * ctx);
+	static void cleanUp(int socket_id, short event, void * ctx);
 private:
 
 	std::vector<tunnels::LocalTunnelSSH* > freeTunnels;
@@ -75,6 +78,8 @@ private:
 	std::unordered_map<int,std::tuple<Address,User,Address>> tunnelLink;
 	std::vector<tunnels::TunnelWorker * > workers;
 	event *poll_event;
+	event *stats_event;
+	event *cleanup_event;
 	struct timeval tv;
 	std::mutex mutex;
 };

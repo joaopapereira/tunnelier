@@ -30,9 +30,15 @@ public:
 		remote->setReadCallBack(this->channel_to_socket, this);
 	};
 	virtual ~LocalTunnelSSH(){
+		std::cout << "Destructing a tunnel"<<std::endl << std::endl;
+		std::lock_guard<std::recursive_mutex> lock(mutex);
+		if( nullptr != channel_to_socket_event){
+			event_del(channel_to_socket_event);
+			event_free(channel_to_socket_event);
+		}
 		delete local;
 		delete remote;
-
+		std::cout << "Tunnel destroyed"<<std::endl << std::endl;
 	};
 	inline void setLocalSocket(LocalSocket * localSocket){
 		std::cout << "Entered setLocalSocket"<<std::endl;

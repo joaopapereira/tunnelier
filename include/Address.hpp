@@ -8,6 +8,7 @@
 #ifndef ADDRESS_HPP_
 #define ADDRESS_HPP_
 #include <string>
+#include <iostream>
 
 class Address{
 public:
@@ -52,6 +53,9 @@ public:
 
 		return (s1.host.size()+s1.port) <
 				(s2.host.size()+s2.port);
+	};
+	friend std::ostream& operator<<(std::ostream& os, const Address& addr){
+	  return os << addr.host << ":" << addr.port;
 	};
 private:
 	/**

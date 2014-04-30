@@ -40,8 +40,8 @@ generic_request_handler(struct evhttp_request *req, void *arg)
 	if (debug)
 		fprintf(stderr, "Request for %s from %s\n", req->uri, req->remote_host);
 
-	evbuffer_add_printf(evb, "And i am the generic");
-	evhttp_send_reply(req, HTTP_OK, "Hello", evb);
+	evbuffer_add_printf(evb, "Come again :D");
+	evhttp_send_reply(req, HTTP_NOTFOUND, "Cannot help you", evb);
 	evbuffer_free(evb);
 	return;
 }
@@ -155,7 +155,88 @@ create_tunnel_handler_cb(struct evhttp_request *req, void *arg)
 	evbuffer_free(evb);
 	return;
 }
+void
+close_tunnel_handler_cb(struct evhttp_request *req, void *arg)
+{
+	RequestHandler *rh = static_cast<RequestHandler*>(arg);
+	Json::Value root;
+	Json::Reader reader;
 
+	bool parsedSuccess;
+
+	struct evbuffer *evb = evbuffer_new();
+	// Request
+	struct evbuffer *requestBuffer;
+	size_t requestLen;
+	char *requestDataBuffer;
+	char errorText[1024];
+
+
+	// Process Request
+	requestBuffer = evhttp_request_get_input_buffer(req);
+	requestLen = evbuffer_get_length(requestBuffer);
+
+	requestDataBuffer = (char *)malloc(sizeof(char) * requestLen);
+	memset(requestDataBuffer, 0, requestLen);
+	evbuffer_copyout(requestBuffer, requestDataBuffer, requestLen);
+	cout << "Drop Request: "<<requestDataBuffer<<endl;
+	parsedSuccess = reader.parse(requestDataBuffer,
+			root,
+			false);
+
+	Json::Value response = Json::Value();
+
+
+	if(not parsedSuccess)
+	{
+		// Report failures and their locations
+		// in the document.
+		cout<<"Failed to parse JSON"<<endl
+				<<reader.getFormatedErrorMessages()
+				<<endl;
+		evbuffer_add_printf(evb, "Error");
+		evhttp_add_header(req->output_headers, "Content-Type", "application/json");
+		evhttp_send_reply(req, HTTP_BADREQUEST, "Incorrect json structure", evb);
+		return;
+	}
+
+	const Json::Value portInfo = root["port"];
+	const Json::Value forceClose = root["force"];
+	if(  portInfo.isObject() ){
+		if( portInfo.isNull() ){
+			cout << "No port" << endl;
+			response["Error"].append("Local port is not defined");
+		}else{
+			bool forceSSHClose = true;
+			if(forceClose.isNull()){
+				forceSSHClose = false;
+			}
+			if( 0 == rh->getManager()->closeTunnel(portInfo.asInt(), forceSSHClose) ){
+				response["Success"] = "Tunnel closed";
+			}else
+				response["Error"] = "Error closing the tunnel!!";
+		}
+	}else{
+		response["Error"].append("Port map is not passed");
+	}
+	printf("%s\n", evhttp_request_uri(req));
+
+	if (debug)
+		fprintf(stderr, "Request for %s from %s\n", req->uri, req->remote_host);
+	/*
+       XXX add here code for managing non-subscription requests
+	 */
+	//evbuffer_add_printf(evb, "{\"done\": 1}");
+	cout << "My response will be: "<<response.toStyledString()<<endl;
+	evbuffer_add_printf(evb, "%s", response.toStyledString().c_str());
+	evhttp_add_header(req->output_headers, "Content-Type", "application/json");
+	if( response["Error"].isNull())
+		evhttp_send_reply(req, HTTP_OK, "Hello", evb);
+	else
+		evhttp_send_reply(req, HTTP_BADREQUEST, "Bad request", evb);
+	evbuffer_free(evb);
+	return;
+}
 
 thread RequestHandler::start_server(){
 	return thread(&RequestHandler::create_server, *this);
@@ -177,6 +258,7 @@ RequestHandler::create_server(){
 
 
 	evhttp_set_cb(http_server, "/create", create_tunnel_handler_cb, this);
+	evhttp_set_cb(http_server, "/drop", close_tunnel_handler_cb, this);
 
 	/* XXX default handler */
 	evhttp_set_gencb(http_server, generic_request_handler, this);
