@@ -99,7 +99,24 @@ int TunnelManager::createTunnel(int localPort, Address middleAddress,
 	std::cout << "Error creating Listener tunnel not created" << std::endl;
 	return -1;
 }
+int
+TunnelManager::closeTunnel(int localPort,bool forceClose) {
+	std::lock_guard<std::mutex> lock(mutex);
+	std::cout << "Closing the tunnel at: "<< localPort<<"!!" << std::endl;
+	try{
+		auto listener = openListeners.at(localPort);
+		openListeners.erase(localPort);
+		delete listener;
+	}catch(...){ return -1;};
+	try{
+		auto tunnelInfo = tunnelLink[localPort];
+		tunnelLink.erase(localPort);
+		if( forceClose ){
 
+		}
+	}catch(...){ return -2;};
+	return 0;
+}
 int TunnelManager::createListener(int localPort,
 		Address destination) {
 	std::cout << "Create Listener!!" << std::endl;

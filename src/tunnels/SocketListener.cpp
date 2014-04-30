@@ -38,6 +38,8 @@ int SocketListener::bind(void * attributes){
 
 SocketListener::~SocketListener() {
 	// TODO Auto-generated destructor stub
+	if( nullptr != listener)
+		evconnlistener_free(listener);
 }
 
 } /* namespace tunnels */

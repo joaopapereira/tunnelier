@@ -202,11 +202,8 @@ close_tunnel_handler_cb(struct evhttp_request *req, void *arg)
 
 	const Json::Value portInfo = root["port"];
 	const Json::Value forceClose = root["force"];
-	if(  portInfo.isObject() ){
-		if( portInfo.isNull() ){
-			cout << "No port" << endl;
-			response["Error"].append("Local port is not defined");
-		}else{
+	if(  !portInfo.isNull() ){
+
 			bool forceSSHClose = true;
 			if(forceClose.isNull()){
 				forceSSHClose = false;
@@ -215,7 +212,7 @@ close_tunnel_handler_cb(struct evhttp_request *req, void *arg)
 				response["Success"] = "Tunnel closed";
 			}else
 				response["Error"] = "Error closing the tunnel!!";
-		}
+
 	}else{
 		response["Error"].append("Port map is not passed");
 	}
