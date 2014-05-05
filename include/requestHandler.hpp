@@ -11,6 +11,7 @@
 #include <thread>
 #include "SharedMemory.h"
 #include "tunnels/TunnelManager.hpp"
+#include "libJPLogger.hpp"
 class RequestHandler{
 public:
 	RequestHandler(SharedMemory *memory, tunnelier::TunnelManager *manager, std::string ip, int port)

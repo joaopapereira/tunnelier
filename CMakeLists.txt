@@ -23,7 +23,22 @@ ENDIF()
 SET(LIBRARY_OUTPUT_PATH .)
 SET(EXECUTABLE_OUTPUT_PATH .)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
+set(CMAKE_FIND_LIBRARY_PREFIXES Find)
+set(CMAKE_FIND_LIBRARY_SUFFIXES cmake)
 
+message("Before searching for LoggerLib")
+#FIND_LIBRARY(JPLoggerStatic REQUIRED)
+#FIND_LIBRARY( LOGGER_LIBRARY NAMES JPLoggerStatic
+#                PATHS ${LOCAL_LIBS} ${INSTALL_LIBS} )
+#message("Library at: ${LOGGER_LIBRARY}")
+#message("Before searching for LoggerLib")
+#include_directories(${logger_INCLUDE_DIRS})
+
+# build dependencies.
+#set(logger_DIR
+#  ${CMAKE_CURRENT_SOURCE_DIR}/modules/logger
+#)
+#find_package(JPLogger)
 #####################################
 ## Project name
 #####################################
@@ -31,7 +46,7 @@ PROJECT ( Tunnelier CXX )
 
 #####################################
 ## Include directories 
-INCLUDE_DIRECTORIES( include lib ${INSTALL_LIBS} ${INSTALL_INCS})
+INCLUDE_DIRECTORIES( include modules/logger/include lib ${INSTALL_LIBS} ${INSTALL_INCS})
 ADD_DEFINITIONS( -std=c++11 -DUSE_DEBUG )
 
 #####################################
@@ -47,11 +62,13 @@ message("Writting the install libs")
 message(${INSTALL_LIBS})
 
 
+
 #####################################
 ## Folders to be build
 #####################################
 ADD_SUBDIRECTORY( src/jsoncpp lib )
 ADD_SUBDIRECTORY( src/tunnels lib )
+ADD_SUBDIRECTORY( modules/logger lib )
 ADD_SUBDIRECTORY( src bin )
 #ADD_SUBDIRECTORY( exampleProgram bin )
 if( compile_with_tests )
@@ -70,7 +87,7 @@ IF( UNIX )
 
     
 
-   ADD_CUSTOM_TARGET( distclean @@echo cleaning for source distribution)
+   #ADD_CUSTOM_TARGET( distclean @@echo cleaning for source distribution)
   SET(DISTCLEANED
    cmake.depends
    cmake.check_depends
@@ -87,7 +104,6 @@ IF( UNIX )
    install_*
    cmake_install.cmake 
    doc/docs/
-   doc/semaphore.dox
 
   )
 
@@ -111,7 +127,7 @@ endif()
 find_package(Doxygen)
 if(DOXYGEN_FOUND)
 	configure_file(${CMAKE_CURRENT_SOURCE_DIR}/doc/tunnelier.dox.in ${CMAKE_CURRENT_BINARY_DIR}/doc/tunnelier.dox @ONLY)
-	add_custom_target(docs
+	add_custom_target(docs_tunnelier
 			${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/doc/thrpool.dox
 			WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 			COMMENT "Generating Tunnelier documentation with Doxygen" VERBATIM

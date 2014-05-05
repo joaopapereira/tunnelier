@@ -29,6 +29,8 @@
 #include "requestHandler.hpp"
 int debug = 0;
 using namespace std;
+using namespace jpCppLibs;
+static string loggerModule("REQ");
 void
 generic_request_handler(struct evhttp_request *req, void *arg)
 {
@@ -37,8 +39,9 @@ generic_request_handler(struct evhttp_request *req, void *arg)
 	/*
        XXX add here code for managing non-subscription requests
 	 */
-	if (debug)
-		fprintf(stderr, "Request for %s from %s\n", req->uri, req->remote_host);
+	OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_DBG,"Request for %s from %s",req->uri, req->remote_host);
+	/**if (debug)
+		fprintf(stderr, "Request for %s from %s\n", req->uri, req->remote_host);*/
 
 	evbuffer_add_printf(evb, "Come again :D");
 	evhttp_send_reply(req, HTTP_NOTFOUND, "Cannot help you", evb);
@@ -49,6 +52,7 @@ generic_request_handler(struct evhttp_request *req, void *arg)
 void
 create_tunnel_handler_cb(struct evhttp_request *req, void *arg)
 {
+	OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_TRC,"Going to try to create a tunnel!!");
 	RequestHandler *rh = static_cast<RequestHandler*>(arg);
 	Json::Value root;
 	Json::Reader reader;
@@ -70,7 +74,8 @@ create_tunnel_handler_cb(struct evhttp_request *req, void *arg)
 	requestDataBuffer = (char *)malloc(sizeof(char) * requestLen);
 	memset(requestDataBuffer, 0, requestLen);
 	evbuffer_copyout(requestBuffer, requestDataBuffer, requestLen);
-	cout << "Request: "<<requestDataBuffer<<endl;
+	OneInstanceLogger::instance().log(loggerModule,M_LOG_LOW, M_LOG_DBG,"Create Request RAW: %s", requestDataBuffer);
+	//cout << "Request: "<<requestDataBuffer<<endl;
 	parsedSuccess = reader.parse(requestDataBuffer,
 			root,
 			false);
@@ -82,43 +87,41 @@ create_tunnel_handler_cb(struct evhttp_request *req, void *arg)
 	{
 		// Report failures and their locations
 		// in the document.
-		cout<<"Failed to parse JSON"<<endl
-				<<reader.getFormatedErrorMessages()
-				<<endl;
+		OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_ERR,"Failed parsing JSON %s", reader.getFormatedErrorMessages().c_str());
 		evbuffer_add_printf(evb, "Error");
 		evhttp_add_header(req->output_headers, "Content-Type", "application/json");
 		evhttp_send_reply(req, HTTP_BADREQUEST, "Incorrect json structure", evb);
 		return;
 	}
-
+	OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_TRC,"JSON Parsed correctly");
 	const Json::Value portInfo = root["port"];
 	if(  portInfo.isObject() ){
 		const Json::Value localPort = portInfo["local_port"];
 		const Json::Value destinationCfg = portInfo["destination"];
 		const Json::Value middleCfg = portInfo["middle"];
 		if( localPort.isNull() ){
-			cout << "No port" << endl;
+			OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_ERR,"Port not present in the JSON request");
 			response["Error"].append("Local port is not defined");
 		}else if( destinationCfg.isNull()){
-			cout << "No destination" << endl;
+			OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_ERR,"Destination not present in the JSON request");
 			response["Error"].append("Destination is not defined");
 		}else if( destinationCfg["port"].isNull()){
-			cout << "No destination.port" << endl;
+			OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_ERR,"'destination.port' not present in the JSON request");
 			response["Error"].append("Destination.port is not defined");
 		}else if( destinationCfg["address"].isNull()){
-			cout << "No destination.address" << endl;
+			OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_ERR,"'destination.address' not present in the JSON request");
 			response["Error"].append("Destination.address is not defined");
 		}else if( middleCfg["address"].isNull()){
-			cout << "No middle.address" << endl;
+			OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_ERR,"'middle.address' not present in the JSON request");
 			response["Error"].append("middle.address is not defined");
 		}else if( middleCfg["port"].isNull()){
-			cout << "No middle.port" << endl;
+			OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_ERR,"'middle.port' not present in the JSON request");
 			response["Error"].append("middle.port is not defined");
 		}else if( middleCfg["user"].isNull()){
-			cout << "No middle.user" << endl;
+			OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_ERR,"'middle.user' not present in the JSON request");
 			response["Error"].append("middle.user is not defined");
 		}else if( middleCfg["password"].isNull()){
-			cout << "No middle.password" << endl;
+			OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_ERR,"'middle.password' not present in the JSON request");
 			response["Error"].append("middle.password is not defined");
 		}else{
 			cout << "Complete" << endl;
@@ -128,24 +131,21 @@ create_tunnel_handler_cb(struct evhttp_request *req, void *arg)
 			Address middle(middleCfg["address"].asString(),middleCfg["port"].asInt());
 			User middleUser(middleCfg["user"].asString(), middleCfg["password"].asString());
 			if( 0 == rh->getManager()->createTunnel(localPort.asInt(), middle, middleUser, destination) ){
+				OneInstanceLogger::instance().log(loggerModule,M_LOG_HGH, M_LOG_INF,"Tunnel created with success!");
 				response["Success"] = "Tunnel created with success";
-			}else
+			}else{
+				OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_ERR,"Error creating tunnel!");
 				response["Error"] = "Error creating the tunnel!!";
+			}
 
-			//event_base_dispatch(mem->getEventBase());
 		}
 	}else{
+		OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_ERR,"Port map is not present!");
 		response["Error"].append("Port map is not passed");
 	}
-	printf("%s\n", evhttp_request_uri(req));
 
-	if (debug)
-		fprintf(stderr, "Request for %s from %s\n", req->uri, req->remote_host);
-	/*
-       XXX add here code for managing non-subscription requests
-	 */
-	//evbuffer_add_printf(evb, "{\"done\": 1}");
-	cout << "My response will be: "<<response.toStyledString()<<endl;
+
+	OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_ERR,"The response to the request will be: %s",response.toStyledString().c_str());
 	evbuffer_add_printf(evb, "%s", response.toStyledString().c_str());
 	evhttp_add_header(req->output_headers, "Content-Type", "application/json");
 	if( response["Error"].isNull())
@@ -153,11 +153,13 @@ create_tunnel_handler_cb(struct evhttp_request *req, void *arg)
 	else
 		evhttp_send_reply(req, HTTP_BADREQUEST, "Bad request", evb);
 	evbuffer_free(evb);
+	OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_TRC,"Tunnel creation ended");
 	return;
 }
 void
 close_tunnel_handler_cb(struct evhttp_request *req, void *arg)
 {
+	OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_TRC,"Request to drop tunnel");
 	RequestHandler *rh = static_cast<RequestHandler*>(arg);
 	Json::Value root;
 	Json::Reader reader;
@@ -179,7 +181,7 @@ close_tunnel_handler_cb(struct evhttp_request *req, void *arg)
 	requestDataBuffer = (char *)malloc(sizeof(char) * requestLen);
 	memset(requestDataBuffer, 0, requestLen);
 	evbuffer_copyout(requestBuffer, requestDataBuffer, requestLen);
-	cout << "Drop Request: "<<requestDataBuffer<<endl;
+	OneInstanceLogger::instance().log(loggerModule,M_LOG_LOW, M_LOG_DBG,"Drop Request RAW: %s", requestDataBuffer);
 	parsedSuccess = reader.parse(requestDataBuffer,
 			root,
 			false);
@@ -189,11 +191,9 @@ close_tunnel_handler_cb(struct evhttp_request *req, void *arg)
 
 	if(not parsedSuccess)
 	{
+		OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_ERR,"Failed parsing JSON %s", reader.getFormatedErrorMessages().c_str());
 		// Report failures and their locations
 		// in the document.
-		cout<<"Failed to parse JSON"<<endl
-				<<reader.getFormatedErrorMessages()
-				<<endl;
 		evbuffer_add_printf(evb, "Error");
 		evhttp_add_header(req->output_headers, "Content-Type", "application/json");
 		evhttp_send_reply(req, HTTP_BADREQUEST, "Incorrect json structure", evb);
@@ -209,22 +209,21 @@ close_tunnel_handler_cb(struct evhttp_request *req, void *arg)
 				forceSSHClose = false;
 			}
 			if( 0 == rh->getManager()->closeTunnel(portInfo.asInt(), forceSSHClose) ){
+				OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_ERR,"Local socket closed successfully");
 				response["Success"] = "Tunnel closed";
-			}else
+			}else{
+				OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_ERR,"Error closing the tunnel!");
 				response["Error"] = "Error closing the tunnel!!";
+			}
 
 	}else{
+		OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_ERR,"Port map not present");
 		response["Error"].append("Port map is not passed");
 	}
-	printf("%s\n", evhttp_request_uri(req));
 
-	if (debug)
-		fprintf(stderr, "Request for %s from %s\n", req->uri, req->remote_host);
-	/*
-       XXX add here code for managing non-subscription requests
-	 */
-	//evbuffer_add_printf(evb, "{\"done\": 1}");
-	cout << "My response will be: "<<response.toStyledString()<<endl;
+
+	OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_ERR,"The response to the request will be: %s",response.toStyledString().c_str());
+
 	evbuffer_add_printf(evb, "%s", response.toStyledString().c_str());
 	evhttp_add_header(req->output_headers, "Content-Type", "application/json");
 	if( response["Error"].isNull())
@@ -232,6 +231,7 @@ close_tunnel_handler_cb(struct evhttp_request *req, void *arg)
 	else
 		evhttp_send_reply(req, HTTP_BADREQUEST, "Bad request", evb);
 	evbuffer_free(evb);
+	OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_TRC,"Ended request to drop tunnel");
 	return;
 }
 
@@ -241,6 +241,7 @@ thread RequestHandler::start_server(){
 
 int
 RequestHandler::create_server(){
+	OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_TRC,"Creating HTTP Server");
 	struct evhttp *http_server = NULL;
 	struct evhttp_bound_socket *handle;
 	//event_init();
@@ -248,8 +249,7 @@ RequestHandler::create_server(){
 	//http_server = evhttp_start(ip_address.c_str(), port);
 	http_server = evhttp_new(mem->getEventHTTPBase());
 	if (http_server == NULL) {
-		fprintf(stderr, "Error starting comet server on port %d\n",
-				port);
+		OneInstanceLogger::instance().log(loggerModule,M_LOG_MAX, M_LOG_ERR, "Error creating HTTP Server in Port %d", port);
 		exit(1);
 	}
 
@@ -272,7 +272,7 @@ RequestHandler::create_server(){
 		fd = evhttp_bound_socket_get_fd(handle);
 		memset(&ss, 0, sizeof(ss));
 		if (getsockname(fd, (struct sockaddr *)&ss, &socklen)) {
-			perror("getsockname() failed");
+			OneInstanceLogger::instance().log(loggerModule,M_LOG_MAX, M_LOG_ERR, "Error getting socket name");
 			return 1;
 		}
 		if (ss.ss_family == AF_INET) {
@@ -282,21 +282,20 @@ RequestHandler::create_server(){
 			got_port = ntohs(((struct sockaddr_in6*)&ss)->sin6_port);
 			inaddr = &((struct sockaddr_in6*)&ss)->sin6_addr;
 		} else {
-			fprintf(stderr, "Weird address family %d\n",
-					ss.ss_family);
+			OneInstanceLogger::instance().log(loggerModule,M_LOG_MAX, M_LOG_ERR, "Weird address family %d", ss.ss_family);
 			return 1;
 		}
 		addr = evutil_inet_ntop(ss.ss_family, inaddr, addrbuf,
 				sizeof(addrbuf));
 		if (addr) {
-			printf("Listening on %s:%d\n", addr, got_port);
-			//evutil_snprintf(uri_root, sizeof(uri_root),
-			//    "http://%s:%d",addr,got_port);
+			OneInstanceLogger::instance().log(loggerModule,M_LOG_MAX, M_LOG_ERR, "Listening at %s port %d", addr, got_port);
 		} else {
-			fprintf(stderr, "evutil_inet_ntop failed\n");
+			OneInstanceLogger::instance().log(loggerModule,M_LOG_MAX, M_LOG_ERR, "Failed to create HTTP server at %s port %d", addr, got_port);
 			return 1;
 		}
 	}
+	OneInstanceLogger::instance().log(loggerModule,M_LOG_HGH, M_LOG_INF, "Ready to start processing HTTP Events");
 	event_base_dispatch(mem->getEventHTTPBase());
-	//event_dispatch();  /* Brooom, brooom */
+	OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_TRC,"HTTP Server stopped");
+
 }

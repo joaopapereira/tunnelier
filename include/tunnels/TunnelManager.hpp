@@ -7,7 +7,7 @@
 
 #ifndef TUNNELMANAGER_HPP_
 #define TUNNELMANAGER_HPP_
-
+#include "libJPLogger.hpp"
 #include <unordered_map>
 #include <map>
 #include <tuple>

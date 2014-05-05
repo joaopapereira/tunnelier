@@ -18,8 +18,9 @@
 #include "requestHandler.hpp"
 #include "SharedMemory.h"
 #include "tunnels/TunnelManager.hpp"
+#include "libJPLogger.hpp"
 using namespace std;
-
+using namespace jpCppLibs;
 const int NUM_WORKERS = 5;
 mutex mtx;
 
@@ -35,8 +36,10 @@ int main(int argc, char **argv)
 	evthread_use_pthreads();
 	event_set_log_callback(logger);
 	event_enable_debug_mode();
+	OneInstanceLogger::instance().setFile("/tmp/tunnelier.log");
+	OneInstanceLogger::instance().setLogLvl("ALL", M_LOG_MIN, M_LOG_ALLLVL);
 	SharedMemory *mem = new SharedMemory();
-
+	OneInstanceLogger::instance().log("APP",M_LOG_NRM, M_LOG_INF,"Starting tunnelier!!!");
 	tunnelier::TunnelManager * manager = new tunnelier::TunnelManager(NUM_WORKERS);
 	RequestHandler rh(mem, manager, ip_addr, port);
 	thread thr1 = rh.start_server();
@@ -44,5 +47,6 @@ int main(int argc, char **argv)
 
 	thr1.join();
 	delete manager;
+	OneInstanceLogger::instance().log("APP",M_LOG_NRM, M_LOG_INF,"Tunnelier stopped");
 	return 0;
 }
