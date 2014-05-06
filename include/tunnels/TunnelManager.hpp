@@ -26,6 +26,7 @@ class TunnelManager;
 #include "tunnels/LocalTunnelSSH.hpp"
 #include "Address.hpp"
 #include "User.hpp"
+#include "libJPLogger.hpp"
 
 
 namespace tunnelier {
@@ -82,6 +83,7 @@ private:
 	event *cleanup_event;
 	struct timeval tv;
 	std::mutex mutex;
+	static std::string LOGNAME;
 };
 
 } /* namespace tunnelier */

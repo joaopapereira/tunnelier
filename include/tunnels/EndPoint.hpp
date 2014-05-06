@@ -7,12 +7,12 @@
 
 #ifndef ENDPOINT_HPP_
 #define ENDPOINT_HPP_
-
+#include "Module.hpp"
 #include <string.h>
 namespace tunnelier {
 namespace tunnels {
 const int MAX_READ_SIZE = 2048;
-class EndPoint {
+class EndPoint: public Module {
 public:
 	EndPoint();
 	virtual ~EndPoint();

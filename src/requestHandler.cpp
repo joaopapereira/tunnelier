@@ -288,7 +288,7 @@ RequestHandler::create_server(){
 		addr = evutil_inet_ntop(ss.ss_family, inaddr, addrbuf,
 				sizeof(addrbuf));
 		if (addr) {
-			OneInstanceLogger::instance().log(loggerModule,M_LOG_MAX, M_LOG_ERR, "Listening at %s port %d", addr, got_port);
+			OneInstanceLogger::instance().log(loggerModule,M_LOG_MAX, M_LOG_INF, "Listening at %s port %d", addr, got_port);
 		} else {
 			OneInstanceLogger::instance().log(loggerModule,M_LOG_MAX, M_LOG_ERR, "Failed to create HTTP server at %s port %d", addr, got_port);
 			return 1;

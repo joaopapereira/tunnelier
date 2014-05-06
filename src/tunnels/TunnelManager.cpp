@@ -11,25 +11,30 @@
 
 
 namespace tunnelier {
+std::string TunnelManager::LOGNAME("MAN");
 using namespace tunnels;
+using namespace jpCppLibs;
 
 TunnelManager::TunnelManager(int numberWorkers) {
 	for( int i = 0 ; i < numberWorkers; i++ ){
 		workers.push_back((new tunnels::TunnelWorker())->start());
 	}
 	tunnels::TunnelWorker * w = workers.at(0);
-	std::cout << "Tunnels starting" << std::endl;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC,"TunnelManager starting...");
+
 	tv.tv_sec = 1;
 	sleep(1);
 	tv.tv_sec = 0;
 	tv.tv_usec = 10;
-	std::cout << "Going to add to the base: " << w->getEventBase()  << std::endl;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG,"Polling in the base %p",w->getEventBase() );
+
 	poll_event = evtimer_new(w->getEventBase(), TunnelManager::poolTunnels, (void*)this);
 	w->addWork();
 	//event_assign(poll_event, w->getEventBase(), -1, flags, timeout_cb, (void*) this);
 	//evtimer_add(ssh_event, static_cast<const timeval*>(&tv));
 	w = this->nextAvailableWorker();
 	evtimer_add(poll_event, static_cast<const timeval*>(&tv));
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG,"Statistics in the base %p",w->getEventBase() );
 	stats_event = evtimer_new(w->getEventBase(), TunnelManager::stats, (void*)this);
 	w->addWork();
 	struct timeval tv1;
@@ -37,6 +42,7 @@ TunnelManager::TunnelManager(int numberWorkers) {
 	tv1.tv_usec = 0;
 	evtimer_add(stats_event, static_cast<const timeval*>(&tv1));
 	w = this->nextAvailableWorker();
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG,"Cleanup in the base %p",w->getEventBase() );
 	cleanup_event = evtimer_new(w->getEventBase(), TunnelManager::cleanUp, (void*)this);
 	w->addWork();
 	tv1.tv_sec = 30;
@@ -47,6 +53,7 @@ TunnelManager::TunnelManager(int numberWorkers) {
 
 TunnelManager::~TunnelManager() {
 	std::lock_guard<std::mutex> lock(mutex);
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC,"Destroying tunnel manager" );
 	// TODO Auto-generated destructor stub
 	event_del(poll_event);
 	event_del(stats_event);
@@ -80,29 +87,34 @@ TunnelManager::~TunnelManager() {
 int TunnelManager::createTunnel(int localPort, Address middleAddress,
 		User middleUser, Address destination) {
 	std::lock_guard<std::mutex> lock(mutex);
-	std::cout << "Create Tunnel!!" << std::endl;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC,"Starting tunnel creation!");
 	if( 0 == createListener(localPort, destination) ){
-		std::cout << "Check if connection is open" << std::endl;
+		OneInstanceLogger::instance().log(LOGNAME,M_LOG_LOW, M_LOG_DBG,"Check if connection already open");
 		if( 0 == isSSHConnectionOpen( middleAddress, middleUser) )
 			return 0;
-		std::cout << "Creating a new SSH Connection!" << std::endl;
+		OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG,"Create SSH Connection!");
 		if( 0 == createSSHConnection( middleAddress, middleUser) ){
 			tunnelLink[localPort] = std::make_tuple(middleAddress, middleUser, destination);
 			return 0;
+			OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_INF,"Tunnel created successfully!");
 		}
 		SocketListener * listener = openListeners[localPort];
 		openListeners.erase(localPort);
 		delete listener;
-		std::cout << "Error executing the connect" << std::endl;
+
+		OneInstanceLogger::instance().log(LOGNAME,M_LOG_HGH, M_LOG_ERR,"Error connecting to Middle!");
 		return -2;
 	}
-	std::cout << "Error creating Listener tunnel not created" << std::endl;
+
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_HGH, M_LOG_ERR,"Error creating local listener!");
+
 	return -1;
 }
 int
 TunnelManager::closeTunnel(int localPort,bool forceClose) {
 	std::lock_guard<std::mutex> lock(mutex);
-	std::cout << "Closing the tunnel at: "<< localPort<<"!!" << std::endl;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_INF,"Closing tunnel at: %d!", localPort);
+
 	try{
 		auto listener = openListeners.at(localPort);
 		openListeners.erase(localPort);
@@ -115,11 +127,15 @@ TunnelManager::closeTunnel(int localPort,bool forceClose) {
 
 		}
 	}catch(...){ return -2;};
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_INF,"Tunnel closed");
 	return 0;
 }
 int TunnelManager::createListener(int localPort,
 		Address destination) {
-	std::cout << "Create Listener!!" << std::endl;
+
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_INF) <<
+			"Creating local listener at port " << localPort <<
+			" for address: " << destination << std::endl;
 	try{
 		openListeners.at(localPort);
 		return -1;
@@ -138,25 +154,32 @@ int TunnelManager::createListener(int localPort,
 	aux->listener = listener;
 	listener->bind(aux);
 	openListeners[localPort] = listener;
-	std::cout << "Listener created with success!" << std::endl;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_INF)
+					<< "Listener created with success!" << std::endl;
 	return 0;
 }
 
 int TunnelManager::createSSHConnection(Address host, User user) {
-	std::cout << "Create SSHConnection!!" << std::endl;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG) <<
+				"Creating SSH Connection against" << host <<
+				" for user: " << user << std::endl;
 	int result = isSSHConnectionOpen(host, user);
 	if( result > 0){
-		std::cout << "Is already open: " << result << std::endl;
+		OneInstanceLogger::instance().log(LOGNAME,M_LOG_LOW, M_LOG_DBG) <<
+						"Connection already open!" << std::endl;
 		return 0;
 	}
 	openConnections.insert(std::make_pair<std::tuple<Address,User>,std::vector<tunnels::SSHConnection*> >(std::make_tuple(host,user),std::vector<tunnels::SSHConnection*>()));
 	SSHConnection * connection = new SSHConnection(host, user);
 	if( 0 == connection->connect() ){
-		std::cout << "Connection created with success" << std::endl;
+		OneInstanceLogger::instance().log(LOGNAME,M_LOG_LOW, M_LOG_DBG) <<
+								"Connection created with success" << std::endl;
 		openConnections[std::make_tuple(host,user)].push_back(connection);
 		return 0;
 	}
-	std::cout << "Unable to create connection" << std::endl;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_WRN) <<
+									"Unable to create connection" <<
+									host << std::endl;
 	return -1;
 }
 
@@ -194,8 +217,9 @@ void TunnelManager::poolTunnels(int fd, short event, void* arg) {
 void  TunnelManager::acceptFromListener_cb(struct evconnlistener *listener,
 		    evutil_socket_t fd, struct sockaddr *address, int socklen,
 		    void *ctx){
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC) <<
+									"New connection arrived!" << std::endl;
 	Manager_SocketListener * arg = static_cast<Manager_SocketListener*>(ctx);
-	std::cout << "Received connection :D"<< std::endl;
 	TunnelManager * manager = arg->manager;
 	SocketListener * listen = arg->listener;
 	auto res = manager->tunnelLink[listen->getLocalPort()];
@@ -217,40 +241,51 @@ void  TunnelManager::acceptFromListener_cb(struct evconnlistener *listener,
 	worker->addWork();
 	//if( it == manager->freeTunnels.end()){
 	if(sshTunnel == nullptr){
-		std::cout <<"Creating new fw channel!"<<std::endl;
+		OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG) <<
+											"Creating new forwarding channel!" << std::endl;
 		tunnels::SSHRemoteEndPoint * sshEndPoint;
 		tunnels::SSHConnection* conn = nullptr;
 		try{
 			auto allConnections = manager->openConnections.at(std::make_tuple(std::get<0>(res), std::get<1>(res)));
 			for( auto t1: allConnections){
-				std::cout <<"Connection is open check if channel can be created!"<<std::endl;
+				OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG) <<
+							"Connection is open check if channel can be created!" << std::endl;
 				if( t1->canCreateChannel()){
-					std::cout <<"Channel can be created!"<<std::endl;
+					OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG) <<
+						"Channel can be created!" << std::endl;
 					conn = t1;
 					break;
 				}
 			}
 			if( nullptr == conn ){
-				std::cout <<"New connection need to be established!"<<std::endl;
+				OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG) <<
+										"New connection need to be established" << std::endl;
 				conn = new tunnels::SSHConnection(std::get<0>(res), std::get<1>(res));
 				if( 0 == conn->connect() ){
+					OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG) <<
+											"Connection created with success" << std::endl;
 					std::cout << "Connection created with success" << std::endl;
 					manager->openConnections[std::make_tuple(std::get<0>(res), std::get<1>(res))].push_back(conn);
 				}else
 					throw std::ios_base::failure("Unable to create new connection");
 			}
-			std::cout <<"Creating new End Point"<<std::endl;
+			OneInstanceLogger::instance().log(LOGNAME,M_LOG_LOW, M_LOG_DBG) <<
+									"Going to create End Point" << std::endl;
 			sshEndPoint = conn->createEndPoint(std::get<2>(res), worker->getEventBase());
 			if( nullptr == sshEndPoint ){
 				throw std::ios_base::failure("Error creating SSH Channel!!!");
 			}
 		}catch(std::out_of_range &e){
 			std::cout << "Connection not created!....." << e.what() << std::endl;
+			OneInstanceLogger::instance().log(LOGNAME,M_LOG_HGH, M_LOG_WRN) <<
+												"Error creating connection:" << e.what() << std::endl;
 			delete localSocket;
 			worker->removeWork();
 			return;
 		}catch( const std::ios_base::failure & e){
-			std::cout << "Connection not created1!....." << e.what() << std::endl;
+			OneInstanceLogger::instance().log(LOGNAME,M_LOG_HGH, M_LOG_WRN) <<
+						"Error creating connection points:" << e.what() << std::endl;
+
 			delete localSocket;
 			worker->removeWork();
 			return;
@@ -265,8 +300,9 @@ void  TunnelManager::acceptFromListener_cb(struct evconnlistener *listener,
 		container->localSocket = sshTunnel;
 
 	}else{
-		std::cout <<"Using fw channel already open!"<<std::endl;
-				sshTunnel->setLocalSocket(localSocket);
+		OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG) <<
+				"Using fw channel already open" << std::endl;
+		sshTunnel->setLocalSocket(localSocket);
 		manager->freeTunnels.erase(delCursor);
 	}
 	localSocket->setReadCallBack(sshTunnel->socket_to_ssh);
@@ -274,24 +310,27 @@ void  TunnelManager::acceptFromListener_cb(struct evconnlistener *listener,
 	localSocket->bindSocket(sshTunnel);
 
 	manager->activeTunnels.push_back(sshTunnel);
-	std::cout <<"New connection accepted"<<std::endl;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_INF) <<
+					"New connection accepted" << std::endl;
 }
 void
 TunnelManager::acceptError_cb(struct evconnlistener *listener, void *ctx){
 	Manager_SocketListener * arg = static_cast<Manager_SocketListener*>(ctx);
-	std::cout << "Error puff"<<std::endl<< std::flush;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_WRN) <<
+						"Error accepting call" << std::endl;
 }
 void
 TunnelManager::localSocketClose(int socket_id, short event, void * ctx){
 	ManagerTunnelWorker * container = static_cast<ManagerTunnelWorker *>(ctx);
 	std::lock_guard<std::mutex> lock(container->manager->mutex);
-	std::cout << "Entered localSocketClose " << std::endl << std::flush;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_LOW, M_LOG_DBG) <<
+							"Socket is being closed" << std::endl;
 	auto it = find(container->manager->activeTunnels.begin(),
 				   container->manager->activeTunnels.end(),
 				   container->localSocket);
 	if( it == container->manager->activeTunnels.end()){
-		std::cout << "Something strange happened closing tunnel is not in the active lot...." << std::endl;
-		//free(container->localSocket);
+		OneInstanceLogger::instance().log(LOGNAME,M_LOG_LOW, M_LOG_WRN) <<
+									"Socket is not active, something went wrong!" << std::endl;
 		delete container->localSocket;
 
 	}else{
@@ -301,7 +340,8 @@ TunnelManager::localSocketClose(int socket_id, short event, void * ctx){
 	}
 	container->worker->removeWork();
 	container->sshConnection->deactivatedChannel();
-	std::cout << "Ended localSocketClose" << std::endl<< std::flush;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC) <<
+			"Ended localSocketClose!" << std::endl;
 }
 
 void TunnelManager::stats(int fd, short event, void* arg) {

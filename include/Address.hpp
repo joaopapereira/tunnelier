@@ -57,6 +57,7 @@ public:
 	friend std::ostream& operator<<(std::ostream& os, const Address& addr){
 	  return os << addr.host << ":" << addr.port;
 	};
+
 private:
 	/**
 	 * Hostname or IP of the address
