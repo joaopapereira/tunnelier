@@ -165,7 +165,10 @@ SSHConnection::createEndPoint(Address destination, struct event_base * workerEve
 	}
 
 	num_channels++;
+	if(0 == num_active_channels)
+		event_add(channel_to_socket_event, nullptr);
 	num_active_channels++;
+
 	std::cout << "Instanciate object" << std::endl;
 	SSHRemoteEndPoint * endPoint = new SSHRemoteEndPoint(host, user, destination, forwarding_channel, workerEventBase);
 	return endPoint;

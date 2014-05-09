@@ -12,6 +12,8 @@
 #include "SSHRemoteEndPoint.hpp"
 #include <libssh/libssh.h>
 #include <event.h>
+#include <unistd.h>
+#include <fcntl.h>
 namespace tunnelier {
 namespace tunnels {
 const int MAX_NUMBER_CHANNELS = 2;
@@ -31,6 +33,8 @@ public:
 	};
 	inline void deactivatedChannel(){
 		num_active_channels--;
+		if( 0 == num_active_channels )
+			event_del(channel_to_socket_event);
 	};
 	inline socket_t getConnectionSocket(){
 		return ssh_get_fd(connection);
@@ -42,14 +46,16 @@ public:
 	};
 	inline void setPollCallBack(event_callback_fn callBack, void * arguments, struct event_base * base){
 		pollCallback = callBack;
-		evutil_make_socket_nonblocking(ssh_get_fd(connection));
+		socket_t newSock =dup(ssh_get_fd(connection));
+		fcntl (newSock, F_SETFD, fcntl (newSock, F_GETFD) | FD_CLOEXEC);
+		evutil_make_socket_nonblocking(newSock);
 		if(nullptr == channel_to_socket_event)
-			channel_to_socket_event = event_new( base, ssh_get_fd(connection), EV_READ, callBack, arguments);
+			channel_to_socket_event = event_new( base, newSock, EV_READ|EV_PERSIST, callBack, arguments);
 		else
-			event_assign(channel_to_socket_event, base, ssh_get_fd(connection), EV_READ, callBack, arguments);
+			event_assign(channel_to_socket_event, base, newSock, EV_READ|EV_PERSIST, callBack, arguments);
 		callBackArgument = arguments;
-		event_add(channel_to_socket_event, nullptr);
-		std::cout << "Setting poll callback: " << ssh_get_fd(connection)<< std::endl;
+
+		std::cout << "Setting poll callback: " << newSock<< std::endl;
 	}
 private:
 	Address host;

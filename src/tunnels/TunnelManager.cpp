@@ -223,7 +223,7 @@ void TunnelManager::poolTunnels(int fd, short event, void* arg) {
 		manager->tv.tv_sec = 1;
 		manager->tv.tv_usec = 0;
 	}
-	evtimer_add(manager->poll_event, static_cast<const timeval*>(&(manager->tv)));
+	//evtimer_add(manager->poll_event, static_cast<const timeval*>(&(manager->tv)));
 }
 
 void  TunnelManager::acceptFromListener_cb(struct evconnlistener *listener,
@@ -366,15 +366,19 @@ void TunnelManager::stats(int fd, short event, void* arg) {
 	tv1.tv_usec = 0;
 	TunnelManager * manager = static_cast<TunnelManager*>(arg);
 	std::lock_guard<std::mutex> lock(manager->mutex);
-	OneInstanceLogger::instance().log("STAT",M_LOG_NRM, M_LOG_INF) <<
-			"Number of active connections destinations: " <<
-			manager->openConnections.size() << std::endl;
+
+	int numCons = 0;
 	for(auto connVec: manager->openConnections){
-		for( auto con: std::get<1>(connVec))
+		for( auto con: std::get<1>(connVec)){
 			OneInstanceLogger::instance().log("STAT",M_LOG_NRM, M_LOG_INF) <<
 						"  Active connection:" <<
 						*con << std::endl;
+			numCons++;
+		}
 	}
+	OneInstanceLogger::instance().log("STAT",M_LOG_NRM, M_LOG_INF) <<
+				"Number of active connections destinations: " <<
+				numCons << std::endl;
 	OneInstanceLogger::instance().log("STAT",M_LOG_NRM, M_LOG_INF) <<
 				"Number of active tunnels: " <<
 				manager->activeTunnels.size() << std::endl;
