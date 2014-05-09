@@ -40,10 +40,10 @@ public:
 	inline void setReadCallback(ssh_channel_data_callback callback, void*data){
 
 
-		//channel_cb.channel_data_function = callback;
-		//channel_cb.userdata = data;
-		//ssh_callbacks_init(&channel_cb);
-		//ssh_set_channel_callbacks(channel, &channel_cb);
+		channel_cb.channel_data_function = callback;
+		channel_cb.userdata = data;
+		ssh_callbacks_init(&channel_cb);
+		ssh_set_channel_callbacks(channel, &channel_cb);
 	}
 	virtual int writeToEndPoint( void* data, int length);
 	int writeToSocket(int socket_fd);

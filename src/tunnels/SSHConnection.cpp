@@ -19,18 +19,21 @@ SSHConnection::SSHConnection(Address host, User user):
 	user(user),
 	connection(ssh_new()),
 	num_channels(0),
-	num_active_channels(0){
+	num_active_channels(0),
+	channel_to_socket_event(nullptr){
 }
 SSHConnection::SSHConnection(SSHConnection& original):
 		host(original.host),
 		user(original.user),
 		connection(ssh_new()),
 		num_channels(0),
-		num_active_channels(0){
+		num_active_channels(0),
+		channel_to_socket_event(nullptr){
 	int result = connect();
 	if( 0 > result ){
 		throw ios_base::failure("Unable to connect to the middle server!!");
 	}
+	setPollCallBack(pollCallback, callBackArgument, event_get_base(original.channel_to_socket_event));
 }
 int
 SSHConnection::connect() {
@@ -56,7 +59,6 @@ SSHConnection::connect() {
 		  return -2;
 	  }
 	}
-
 	return 0;
 }
 

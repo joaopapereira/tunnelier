@@ -18,10 +18,11 @@
 #include "requestHandler.hpp"
 #include "SharedMemory.h"
 #include "tunnels/TunnelManager.hpp"
+#include <libssh/callbacks.h>
 #include "libJPLogger.hpp"
 using namespace std;
 using namespace jpCppLibs;
-const int NUM_WORKERS = 5;
+const int NUM_WORKERS = 1;
 mutex mtx;
 #define DEBUG 1
 
@@ -40,6 +41,8 @@ int main(int argc, char **argv)
 	evthread_use_pthreads();
 	event_set_log_callback(logger);
 	event_enable_debug_mode();
+	ssh_threads_set_callbacks(ssh_threads_get_noop());
+	ssh_init();
 	SharedMemory *mem = new SharedMemory();
 	OneInstanceLogger::instance().log("APP",M_LOG_NRM, M_LOG_INF) << "Starting tunnelier!!!" << std::endl;
 	tunnelier::TunnelManager * manager = new tunnelier::TunnelManager(NUM_WORKERS);

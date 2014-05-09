@@ -132,9 +132,11 @@ public:
 		//con->remote->setData(data, len);
 		//return len - con->remote->directCopy(con->local, data, len);
 		std::cout << "packet data: "<< static_cast<char*>(data)<<std::endl;
-		int processed = con->local->writeToEndPoint(data, len);
-		std::cout << "Exit copy_chan_to_fd processing:" << processed << " of "<< len<<std::endl;
-		return len - processed;
+		con->poll();
+		//int processed = con->local->writeToEndPoint(data, len);
+		//std::cout << "Exit copy_chan_to_fd processing:" << processed << " of "<< len<<std::endl;
+		std::cout << "Exit copy_chan_to_fd processing"<< std::endl;
+		return 0;
 	};
 	static void channel_to_socket(int socket_id, short event, void * ctx){
 		std::cout << "Entered channel_to_socket"<<std::endl;
