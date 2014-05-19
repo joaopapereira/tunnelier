@@ -11,6 +11,7 @@
 #include <event2/listener.h>
 #include <event2/bufferevent.h>
 #include <event2/buffer.h>
+#include "libJPLogger.hpp"
 
 namespace tunnelier {
 namespace tunnels {
@@ -54,6 +55,7 @@ private:
 #endif
 	int socket_id;
 	struct event_base * workerEventBase;
+	std::string LOGNAME;
 };
 
 } /* namespace tunnels */

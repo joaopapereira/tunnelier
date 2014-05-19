@@ -35,7 +35,6 @@ public:
 		readCallBack = callBack;
 		event_assign(socket_event, workerEventBase, -1, EV_WRITE, callBack, arguments);
 		this->argument = arguments;
-		std::cout << "BAM!!!" << std::endl;
 	}
 	inline void setReadCallback(ssh_channel_data_callback callback, void*data){
 

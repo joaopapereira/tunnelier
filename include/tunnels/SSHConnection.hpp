@@ -54,8 +54,6 @@ public:
 		else
 			event_assign(channel_to_socket_event, base, newSock, EV_READ|EV_PERSIST, callBack, arguments);
 		callBackArgument = arguments;
-
-		std::cout << "Setting poll callback: " << newSock<< std::endl;
 	}
 private:
 	Address host;

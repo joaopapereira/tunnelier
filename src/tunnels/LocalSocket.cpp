@@ -12,6 +12,7 @@
 #include <event.h>
 #include <sys/socket.h>
 using namespace tunnelier::tunnels;
+using namespace jpCppLibs;
 LocalSocket::LocalSocket(int socket_fd, struct event_base * workerEventBase):
 		EndPoint(),
 
@@ -19,9 +20,12 @@ LocalSocket::LocalSocket(int socket_fd, struct event_base * workerEventBase):
 		readCallBack(nullptr),
 		errorCallBack(nullptr),
 		socket_id(socket_fd),
-		workerEventBase(workerEventBase){
-	std::cout << "Creating LocalSocket for fd:"<<socket_fd<<std::endl;
-	std::cout << "LocalMy worker is " << workerEventBase << std::endl;
+		workerEventBase(workerEventBase),
+		LOGNAME("LSOC"){
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC)
+				<< "Creating LocalSocket for fd: '"
+				<< socket_fd << "' the worker is: " << workerEventBase << std::endl;
+
 #if !USE_UNIX_SOCKET
 	/*socket_event = bufferevent_socket_new(
 			workerEventBase, socket_fd, BEV_OPT_CLOSE_ON_FREE|BEV_OPT_THREADSAFE|BEV_OPT_DEFER_CALLBACKS|BEV_OPT_UNLOCK_CALLBACKS );*/
@@ -50,10 +54,13 @@ LocalSocket::writeToEndPoint(void* data, int length){
 		data[length] = 0;
 		con->sshChannel->writeToSSH(data, length);
 	}*/
-	std::cout << "Entered writeToEndPoint" << std::endl;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC)
+					<< "Entered writeToEndPoint" << std::endl;
 	if( 0 == bufferevent_write(socket_event, data,length) )
 		return length;
-	std::cout << "Exit writeToEndPoint"<<std::endl;
+
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC)
+						<< "Exit writeToEndPoint" << std::endl;
 }
 #else
 int
@@ -67,17 +74,20 @@ LocalSocket::writeToEndPoint(void* data, int length){
 #endif
 void
 LocalSocket::bindSocket( void * arguments){
-	std::cout << "Start binding socket" << std::endl;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC)
+						<< "Entered bindSocket" << std::endl;
 #if !USE_UNIX_SOCKET
 	socket_event = bufferevent_socket_new(
 				workerEventBase, socket_id, BEV_OPT_CLOSE_ON_FREE|BEV_OPT_THREADSAFE|BEV_OPT_DEFER_CALLBACKS|BEV_OPT_UNLOCK_CALLBACKS );
 	bufferevent_setcb(socket_event, readCallBack, NULL, errorCallBack, arguments);
-	std::cout << "Enable Events" << std::endl;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC)
+							<< "Enable event" << std::endl;
 	bufferevent_enable(socket_event, EV_READ|EV_WRITE);
 #else
 	event_assign(socket_event, workerEventBase, socket_id, EV_READ, readCallBack, arguments);
 #endif
-	std::cout << "End binding socket" << std::endl;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC)
+								<< "Exit bindSocket" << std::endl;
 }
 
 int
