@@ -30,7 +30,8 @@ LocalTunnelSSH::~LocalTunnelSSH(){
 	}
 	delete local;
 	delete remote;
-	std::cout << "Tunnel destroyed"<<std::endl << std::endl;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG)
+				<< "Tunnel destroyed" << std::endl;
 };
 void
 LocalTunnelSSH::setLocalSocket(LocalSocket * localSocket){
@@ -50,19 +51,25 @@ LocalTunnelSSH::setLocalSocket(LocalSocket * localSocket){
 #if USE_UNIX_SOCKET
 void
 LocalTunnelSSH::socket_to_ssh(int socket_id, short event, void * ctx){
-	std::cout << "Entered socket_to_ssh"<<std::endl;
+
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC)
+					<< "Entered socket_to_ssh" << std::endl;
 	LocalTunnelSSH * con = static_cast<LocalTunnelSSH *>(ctx);
 	std::lock_guard<std::recursive_mutex> lock(con->mutex);
-	std::cout << "Passed mutex on socket_to_ssh"<<std::endl;
+
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_LOW, M_LOG_TRC)
+						<< "Passed mutex socket_to_ssh" << std::endl;
 	char data[4096];
 	int length;
 	while( (length = read(socket_id, data, sizeof(data) ) ) > 0 ){
 		data[length] = 0;
 		con->remote->writeToEndPoint(data, length);
-		std::cout << "packet data: "<< data<<std::endl;
-		std::cout << "socket_to_ssh" << " Packet sent!"<<std::endl;
+		OneInstanceLogger::instance().log(LOGNAME,M_LOG_LOW, M_LOG_TRC)
+								<< "Packet data:" << data << std::endl;
 	}
-	std::cout << "Exit socket_to_ssh"<<std::endl;
+
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC)
+						<< "Exit socket_to_ssh" << std::endl;
 };
 #else
 void
@@ -141,16 +148,12 @@ LocalTunnelSSH::copy_chan_to_fd(ssh_session session,
 						<< "Entered copy_chan_to_fd()" << std::endl;
 
 	std::lock_guard<std::recursive_mutex> lock(con->mutex);
-	std::cout << "Passed mutex on copy_chan_to_fd"<<std::endl;
 	OneInstanceLogger::instance().log(con->LOGNAME,M_LOG_LOW, M_LOG_TRC)
 				<< "copy_chan_to_fd() passed mutex" << std::endl;
 	//con->remote->setData(data, len);
 	//return len - con->remote->directCopy(con->local, data, len);
-	//std::cout << "packet data: "<< static_cast<char*>(data)<<std::endl;
 	con->poll();
 	//int processed = con->local->writeToEndPoint(data, len);
-	//std::cout << "Exit copy_chan_to_fd processing:" << processed << " of "<< len<<std::endl;
-
 	OneInstanceLogger::instance().log(con->LOGNAME,M_LOG_NRM, M_LOG_TRC)
 				<< "Exit copy_chan_to_fd()" << std::endl;
 	return 0;

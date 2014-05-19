@@ -66,7 +66,8 @@ LocalSocket::writeToEndPoint(void* data, int length){
 int
 LocalSocket::writeToEndPoint(void* data, int length){
 	if( write(socket_id, data,length) < 0 ){
-		std::cout << "Error  sending to socket:" << errno << std::endl;
+		OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_ERR)
+								<< Error  sending to socket:" << errno << std::endl;
 		return 0;
 	}
 	return length;
@@ -101,12 +102,14 @@ LocalSocket::poll(){
 	struct timeval timeout;
 	timeout.tv_sec=1;
         timeout.tv_usec=0;
-	std::cout << "Pooling local sockect" << std::endl;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC)
+									<< "Pooling local socket" << std::endl;
 	res = select( socket_id+1, &read_flags,NULL,NULL,&timeout);
 	if( res < 0 )
 	    return -1;
 	else if( FD_ISSET(socket_id , &read_flags )){
-		std::cout << "I have stuff!!" << std::endl;
+		OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG)
+											<< "Socket have information" << std::endl;
 		event_add(socket_event, nullptr);
 	}
 	return -2;
