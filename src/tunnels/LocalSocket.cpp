@@ -67,7 +67,7 @@ int
 LocalSocket::writeToEndPoint(void* data, int length){
 	if( write(socket_id, data,length) < 0 ){
 		OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_ERR)
-								<< Error  sending to socket:" << errno << std::endl;
+								<< "Error  sending to socket:" << errno << std::endl;
 		return 0;
 	}
 	return length;

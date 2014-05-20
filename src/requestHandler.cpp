@@ -75,7 +75,6 @@ create_tunnel_handler_cb(struct evhttp_request *req, void *arg)
 	memset(requestDataBuffer, 0, requestLen);
 	evbuffer_copyout(requestBuffer, requestDataBuffer, requestLen);
 	OneInstanceLogger::instance().log(loggerModule,M_LOG_LOW, M_LOG_DBG,"Create Request RAW: %s", requestDataBuffer);
-	//cout << "Request: "<<requestDataBuffer<<endl;
 	parsedSuccess = reader.parse(requestDataBuffer,
 			root,
 			false);
@@ -124,7 +123,7 @@ create_tunnel_handler_cb(struct evhttp_request *req, void *arg)
 			OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_ERR,"'middle.password' not present in the JSON request");
 			response["Error"].append("middle.password is not defined");
 		}else{
-			cout << "Complete" << endl;
+			OneInstanceLogger::instance().log(loggerModule,M_LOG_HGH, M_LOG_DBG,"All parameters present!");
 
 
 			Address destination(destinationCfg["address"].asString(), destinationCfg["port"].asInt());

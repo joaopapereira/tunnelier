@@ -11,6 +11,7 @@
 #include <tunnels/EndPoint.hpp>
 #include <Address.hpp>
 #include <User.hpp>
+#include "libJPLogger.hpp"
 #include <libssh/libssh.h>
 #include <libssh/callbacks.h>
 #include <mutex>
@@ -60,6 +61,8 @@ private:
 	struct event * socket_event;
 	struct event_base * workerEventBase;
 	void * argument;
+	std::string LOGNAME;
+
 
 };
 

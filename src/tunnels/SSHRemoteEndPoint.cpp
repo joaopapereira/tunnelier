@@ -10,7 +10,7 @@
 
 namespace tunnelier {
 namespace tunnels {
-
+using namespace jpCppLibs;
 SSHRemoteEndPoint::SSHRemoteEndPoint(Address middleHost, User middleUser, Address destination):
 	EndPoint(),
 	middleHost(middleHost),
@@ -19,7 +19,8 @@ SSHRemoteEndPoint::SSHRemoteEndPoint(Address middleHost, User middleUser, Addres
 	channel(nullptr),
 	socket_event(nullptr),
 	readCallBack(nullptr),
-	workerEventBase(nullptr){
+	workerEventBase(nullptr),
+	LOGNAME("REP"){
 
 }
 SSHRemoteEndPoint::SSHRemoteEndPoint(Address middleHost, User middleUser, Address destination, ssh_channel channel, struct event_base * workerEventBase ):
@@ -30,8 +31,8 @@ SSHRemoteEndPoint::SSHRemoteEndPoint(Address middleHost, User middleUser, Addres
 		channel(channel),
 		socket_event(event_new(workerEventBase, 1, EV_READ, nullptr, nullptr)),
 		readCallBack(nullptr),
-		workerEventBase(workerEventBase){
-	std::cout << "My worker is " << workerEventBase << std::endl;
+		workerEventBase(workerEventBase),
+		LOGNAME("REP"){
 }
 SSHRemoteEndPoint::~SSHRemoteEndPoint() {
 	if(nullptr != channel){
@@ -48,9 +49,10 @@ int SSHRemoteEndPoint::poll() {
 	int result = channel && \
 	ssh_channel_is_open(channel) &&
 	ssh_channel_poll(channel,0);
-	//std::cout<< "Result is: " << result << std::endl;
 	if( result > 0 ){
-		std:: cout << "Scheduling!!!"<<std::endl;
+		OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC)
+			<< "Scheduling read!" << std::endl;
+
 		event_add(socket_event, nullptr);
 	}
 	return result;
@@ -68,25 +70,30 @@ int SSHRemoteEndPoint::writeToSocket(int socket_fd){
 	int r;
 	char sendBuff[2048];
 	int lus;
-	std::cout << "WriteToSocket()" << std::endl;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC)
+				<< "Entered writeToSocket" << std::endl;
 	while(channel && ssh_channel_is_open(channel) && (r = ssh_channel_poll(channel,0))!=0){
                 lus=ssh_channel_read(channel,sendBuff,sizeof(sendBuff) > r ? r : sizeof(sendBuff),0);
                 if(lus==-1){
-                    fprintf(stderr, "Error reading channel:\n");
+                	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_ERR)
+                					<< "Error reading from channel!!" << std::endl;
                     return -1;
                 }
                 if(lus==0){
                     ssh_channel_free(channel);
                     channel=NULL;
                 } else
-		  std::cout << "Writing to socket: "  <<sendBuff << std::endl;
+                	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG)
+							<< "Going to write to socket" << std::endl;
                   if (write(socket_fd, sendBuff,lus) < 0) {
-                    fprintf(stderr, "Error writing to buffer\n");
+                	  OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_ERR)
+							<< "Error writting to socket!!" << std::endl;
                     return -1;
               }
         }
 	
-	std::cout << "End WriteToSocket()" << std::endl;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC)
+					<< "Exit writeToSocket" << std::endl;
 }
 } /* namespace tunnels */
 } /* namespace tunnelier */

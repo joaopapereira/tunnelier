@@ -208,7 +208,6 @@ TunnelWorker* TunnelManager::nextAvailableWorker() {
 void TunnelManager::poolTunnels(int fd, short event, void* arg) {
 	TunnelManager * manager = static_cast<TunnelManager*>(arg);
 	std::lock_guard<std::mutex> lock(manager->mutex);
-	std::cout << "Going to poll!!!"<<std::endl;
 	for(auto tunnel: manager->activeTunnels){
 		if( 1 == tunnel->poll() ){
 			TunnelWorker * w = manager->nextAvailableWorker();
