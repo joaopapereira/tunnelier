@@ -22,6 +22,7 @@
 #include "tunnels/TunnelManager.hpp"
 #include <libssh/callbacks.h>
 #include "libJPLogger.hpp"
+#include <getopt.h>
 using namespace std;
 using namespace jpCppLibs;
 const int NUM_WORKERS = 1;
@@ -43,9 +44,35 @@ int main(int argc, char **argv)
 	OneInstanceLogger::instance().setFile("/tmp/tunnelier.log");
 	OneInstanceLogger::instance().setLogLvl("ALL", M_LOG_MIN, M_LOG_ALLLVL);
 
-
+	static struct option long_options[] =
+	{
+	    {"port", 2, NULL, 'p'},
+	    {"host", 2, NULL, 'w'},
+	    {NULL, 0, NULL, 0}
+	};
+	int option_index = 0;
+	int c;
 	string ip_addr = "0.0.0.0";
 	int port =8080;
+	while ((c = getopt_long(argc, argv, "p:w:",
+				 long_options, &option_index)) != -1) {
+		int this_option_optind = optind ? optind : 1;
+		switch (c) {
+		case 'p':
+			port = std::stoi(optarg);
+			break;
+		case 'w':
+			ip_addr = optarg;
+			break;
+		}
+	}
+	if (optind < argc) {
+		printf ("non-option ARGV-elements: ");
+		while (optind < argc)
+			printf ("%s ", argv[optind++]);
+		printf ("\n");
+	}
+
 	pid_t pid, sid;
 
    //Fork the Parent Process
