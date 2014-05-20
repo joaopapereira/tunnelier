@@ -31,6 +31,8 @@ int debug = 0;
 using namespace std;
 using namespace jpCppLibs;
 static string loggerModule("REQ");
+static struct evhttp *http_server = nullptr;
+static struct evhttp_bound_socket *handle;
 void
 generic_request_handler(struct evhttp_request *req, void *arg)
 {
@@ -233,7 +235,23 @@ close_tunnel_handler_cb(struct evhttp_request *req, void *arg)
 	OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_TRC,"Ended request to drop tunnel");
 	return;
 }
-
+void
+stop_server_handler_cb(struct evhttp_request *req, void *arg)
+{
+	RequestHandler *rh = static_cast<RequestHandler*>(arg);
+	OneInstanceLogger::instance().log(loggerModule,M_LOG_HGH, M_LOG_INF,"Going to stop server!");
+	struct evbuffer *evb = evbuffer_new();
+	Json::Value response = Json::Value();
+	response["Success"] = "Server will be stopped!";
+	evbuffer_add_printf(evb, "%s", response.toStyledString().c_str());
+	evhttp_add_header(req->output_headers, "Content-Type", "application/json");
+	evhttp_send_reply(req, HTTP_OK, "Hello", evb);
+	evbuffer_free(evb);
+	event_base_loopexit(rh->getHttpBase(), nullptr);
+	event_base_loopbreak(rh->getHttpBase());
+	evhttp_del_accept_socket(http_server, handle);
+	OneInstanceLogger::instance().log(loggerModule,M_LOG_HGH, M_LOG_DBG,"Exited from loop");
+}
 thread RequestHandler::start_server(){
 	return thread(&RequestHandler::create_server, *this);
 }
@@ -241,13 +259,12 @@ thread RequestHandler::start_server(){
 int
 RequestHandler::create_server(){
 	OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_TRC,"Creating HTTP Server");
-	struct evhttp *http_server = NULL;
-	struct evhttp_bound_socket *handle;
+
 	//event_init();
 
 	//http_server = evhttp_start(ip_address.c_str(), port);
 	http_server = evhttp_new(mem->getEventHTTPBase());
-	if (http_server == NULL) {
+	if (http_server == nullptr) {
 		OneInstanceLogger::instance().log(loggerModule,M_LOG_MAX, M_LOG_ERR, "Error creating HTTP Server in Port %d", port);
 		exit(1);
 	}
@@ -255,6 +272,7 @@ RequestHandler::create_server(){
 
 	evhttp_set_cb(http_server, "/create", create_tunnel_handler_cb, this);
 	evhttp_set_cb(http_server, "/drop", close_tunnel_handler_cb, this);
+	evhttp_set_cb(http_server, "/stopserver", stop_server_handler_cb, this);
 
 	/* XXX default handler */
 	evhttp_set_gencb(http_server, generic_request_handler, this);

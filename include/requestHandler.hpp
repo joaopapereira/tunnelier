@@ -26,6 +26,9 @@ public:
 	inline tunnelier::TunnelManager * getManager(){
 		return manager;
 	}
+	event_base * getHttpBase(){
+		return mem->getEventBase();
+	}
 private:
 
 	SharedMemory *mem;
