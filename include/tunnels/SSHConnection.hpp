@@ -17,7 +17,7 @@
 #include <fcntl.h>
 namespace tunnelier {
 namespace tunnels {
-const int MAX_NUMBER_CHANNELS = 2;
+const int MAX_NUMBER_CHANNELS = 15;
 class SSHConnection {
 public:
 	SSHConnection(Address host, User user);
