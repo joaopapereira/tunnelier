@@ -11,6 +11,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <thread>
 #include <mutex>
 #include <event2/thread.h>
@@ -26,6 +28,10 @@ const int NUM_WORKERS = 1;
 mutex mtx;
 #define DEBUG 1
 
+thread thr1;
+
+
+
 void logger(int severity, const char *msg){
 	std::lock_guard<std::mutex> lock(mtx);
 	//cerr << "libevent [" << severity << "] " << msg << endl;
@@ -36,8 +42,34 @@ int main(int argc, char **argv)
 {
 	OneInstanceLogger::instance().setFile("/tmp/tunnelier.log");
 	OneInstanceLogger::instance().setLogLvl("ALL", M_LOG_MIN, M_LOG_ALLLVL);
+
+
 	string ip_addr = "0.0.0.0";
 	int port =8080;
+	pid_t pid, sid;
+
+   //Fork the Parent Process
+	pid = fork();
+	if (pid < 0) { exit(EXIT_FAILURE); }
+
+	//We got a good pid, Close the Parent Process
+	if (pid > 0) { exit(EXIT_SUCCESS); }
+
+	//Change File Mask
+	umask(0);
+
+	//Create a new Signature Id for our child
+	sid = setsid();
+	if (sid < 0) { exit(EXIT_FAILURE); }
+
+	//Change Directory
+	//If we cant find the directory we exit with failure.
+	if ((chdir("/")) < 0) { exit(EXIT_FAILURE); }
+
+	//Close Standard File Descriptors
+	close(STDIN_FILENO);
+	close(STDOUT_FILENO);
+	close(STDERR_FILENO);
 	evthread_use_pthreads();
 	event_set_log_callback(logger);
 	event_enable_debug_mode();
@@ -47,7 +79,7 @@ int main(int argc, char **argv)
 	OneInstanceLogger::instance().log("APP",M_LOG_NRM, M_LOG_INF) << "Starting tunnelier!!!" << std::endl;
 	tunnelier::TunnelManager * manager = new tunnelier::TunnelManager(NUM_WORKERS);
 	RequestHandler rh(mem, manager, ip_addr, port);
-	thread thr1 = rh.start_server();
+	thr1 = rh.start_server();
 	//manager->start();
 
 	thr1.join();
