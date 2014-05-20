@@ -10,6 +10,7 @@
 #include "Address.hpp"
 #include "User.hpp"
 #include "SSHRemoteEndPoint.hpp"
+#include "libJPLogger.hpp"
 #include <libssh/libssh.h>
 #include <event.h>
 #include <unistd.h>
@@ -65,6 +66,7 @@ private:
 	struct event *channel_to_socket_event;
 	event_callback_fn pollCallback;
 	void * callBackArgument;
+	std::string LOGNAME;
 };
 
 } /* namespace tunnels */

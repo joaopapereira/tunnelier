@@ -14,13 +14,15 @@
 namespace tunnelier {
 namespace tunnels {
 using namespace std;
+using namespace jpCppLibs;
 SSHConnection::SSHConnection(Address host, User user):
 	host(host),
 	user(user),
 	connection(ssh_new()),
 	num_channels(0),
 	num_active_channels(0),
-	channel_to_socket_event(nullptr){
+	channel_to_socket_event(nullptr),
+	LOGNAME("CON"){
 }
 SSHConnection::SSHConnection(SSHConnection& original):
 		host(original.host),
@@ -28,7 +30,8 @@ SSHConnection::SSHConnection(SSHConnection& original):
 		connection(ssh_new()),
 		num_channels(0),
 		num_active_channels(0),
-		channel_to_socket_event(nullptr){
+		channel_to_socket_event(nullptr),
+		LOGNAME("CON"){
 	int result = connect();
 	if( 0 > result ){
 		throw ios_base::failure("Unable to connect to the middle server!!");
@@ -37,28 +40,36 @@ SSHConnection::SSHConnection(SSHConnection& original):
 }
 int
 SSHConnection::connect() {
-	std::cout << "Entered connect_tunnel"<<std::endl;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC)
+				<< "Entered connect_tunnel" << std::endl;
 	int rc = 0;
 	ssh_options_set(connection, SSH_OPTIONS_HOST, host.getHost().c_str());
 	ssh_options_set(connection, SSH_OPTIONS_USER, user.getUsername().c_str());
 	ssh_options_set(connection, SSH_OPTIONS_LOG_VERBOSITY_STR, "3");
 	rc = ssh_connect(connection);
 	if (rc != SSH_OK){
-	  std::cout <<"Error connecting to " <<  host.getHost() << ": "<< ssh_get_error(connection)<<std::endl;
+	  OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_ERR)
+	  				<< "Error connecting to " <<  host.getHost()
+	  				<< ": "<< ssh_get_error(connection)<< std::endl;
 	  return -1;
 	}
-	std::cout <<"Trying to connect!!!!" << std::endl;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG)
+		  				<< "Trying to connect!!!" << std::endl;
 	rc = ssh_userauth_none(connection, NULL);
 	if(rc == SSH_AUTH_SUCCESS){
-	  std::cout << "Authenticated using method none" << std::endl;
+		OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG)
+				  				<< "Authenticated using method none!" << std::endl;
 	} else {
-	  std::cout << "Authentication console with password: '"<<user.getPassword()<<"'"<<std::endl;
+		OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG)
+						  				<< "Authentication console!" << std::endl;
 	  rc = authenticate_kbdint();
 	  if(rc != SSH_AUTH_SUCCESS){
 		  cerr << "Authentication failed: " << ssh_get_error(connection) << std::endl;
 		  return -2;
 	  }
 	}
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG)
+					<< "Connection created to: "  <<  host.getHost() << std::endl;
 	return 0;
 }
 
@@ -84,11 +95,13 @@ SSHConnection::authenticate_kbdint() {
          n = ssh_userauth_kbdint_getnprompts(connection);
 
          if (name && strlen(name) > 0) {
-             std::cout <<name << std::endl;
+             OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG)
+             		<< name << std::endl;
          }
 
          if (instruction && strlen(instruction) > 0) {
-             std::cout <<instruction << std::endl;
+             OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG)
+                          		<< instruction << std::endl;
          }
 
          for (i = 0; i < n; i++) {
@@ -144,22 +157,28 @@ SSHConnection::authenticate_kbdint() {
 SSHRemoteEndPoint *
 SSHConnection::createEndPoint(Address destination, struct event_base * workerEventBase){
 	ssh_channel forwarding_channel;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG)
+		<< "Create a connection end point to: "  <<  host.getHost() << std::endl;
 
 	forwarding_channel = ssh_channel_new(connection);
 
 	ssh_set_log_level( SSH_LOG_FUNCTIONS );
-	std::cout << "Creating SSHEndPoint" << std::endl;
 	if (forwarding_channel == NULL) {
-		std::cerr << "Channel creation error: " << ssh_get_error(connection) << std::endl;
+		OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_ERR)
+				<< "Error creating End Point("  <<  host.getHost() << "): "
+				<<ssh_get_error(connection) <<std::endl;
 		return nullptr;
 	}
-	std::cout << "Opening forwarding port" << std::endl;
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG)
+			<< "Opening forwarding port"  << std::endl;
 	int rc = ssh_channel_open_forward(forwarding_channel,
 									destination.getHost().c_str(), destination.getPort(),
 									"localhost", 1);
 	if (rc != SSH_OK)
 	{
-		std::cerr << "Channel forward open: " << ssh_get_error(connection) << std::endl;
+		OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_ERR)
+						<< "Error creating forward channel("  <<  host.getHost() << "): "
+						<<ssh_get_error(connection) <<std::endl;
 		ssh_channel_free(forwarding_channel);
 		return nullptr;
 	}
@@ -169,8 +188,9 @@ SSHConnection::createEndPoint(Address destination, struct event_base * workerEve
 		event_add(channel_to_socket_event, nullptr);
 	num_active_channels++;
 
-	std::cout << "Instanciate object" << std::endl;
 	SSHRemoteEndPoint * endPoint = new SSHRemoteEndPoint(host, user, destination, forwarding_channel, workerEventBase);
+	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC)
+			<< "End point created"  << std::endl;
 	return endPoint;
 }
 } /* namespace tunnels */
