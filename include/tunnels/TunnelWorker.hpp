@@ -37,13 +37,13 @@ public:
 	}
 	static void run(TunnelWorker * worker){
 		worker->base = event_base_new();
-		std::cout << "Start run Worker: with base:" << worker->base << std::endl;
+
 		worker->keep_running = true;
 		while( worker->keep_running){
 			event_base_dispatch(worker->base);
 			sleep(1);
 		}
-		std::cout << "And i am dying now!" << std::endl;
+
 	}
 	inline void addWork(){
 		std::lock_guard<std::mutex> lock(mutex);
