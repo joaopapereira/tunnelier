@@ -23,7 +23,11 @@ LocalTunnelSSH::LocalTunnelSSH(LocalSocket * local, SSHRemoteEndPoint *remote, s
 LocalTunnelSSH::~LocalTunnelSSH(){
 	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC)
 			<< "Destructing a tunnel" << std::endl;
+#ifdef USE_BOOST_INSTEAD_CXX11
+	std::lock_guard<std::recursive_mutex*> lock(&mutex);
+#else
 	std::lock_guard<std::recursive_mutex> lock(mutex);
+#endif
 	if( nullptr != channel_to_socket_event){
 		event_del(channel_to_socket_event);
 		event_free(channel_to_socket_event);
@@ -38,7 +42,11 @@ LocalTunnelSSH::setLocalSocket(LocalSocket * localSocket){
 	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC)
 				<< "Entered setLocalSocket()" << std::endl;
 
+#ifdef USE_BOOST_INSTEAD_CXX11
+	std::lock_guard<std::recursive_mutex*> lock(&mutex);
+#else
 	std::lock_guard<std::recursive_mutex> lock(mutex);
+#endif
 	OneInstanceLogger::instance().log(LOGNAME,M_LOG_LOW, M_LOG_TRC)
 					<< "setLocalSocket() passed lock" << std::endl;
 	if( local != nullptr )
@@ -55,7 +63,11 @@ LocalTunnelSSH::socket_to_ssh(int socket_id, short event, void * ctx){
 	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC)
 					<< "Entered socket_to_ssh" << std::endl;
 	LocalTunnelSSH * con = static_cast<LocalTunnelSSH *>(ctx);
+#ifdef USE_BOOST_INSTEAD_CXX11
+	std::lock_guard<std::recursive_mutex*> lock(&(con->mutex));
+#else
 	std::lock_guard<std::recursive_mutex> lock(con->mutex);
+#endif
 
 	OneInstanceLogger::instance().log(LOGNAME,M_LOG_LOW, M_LOG_TRC)
 						<< "Passed mutex socket_to_ssh" << std::endl;
@@ -78,7 +90,11 @@ LocalTunnelSSH::socket_to_ssh(struct bufferevent *bev, void *ctx){
 	OneInstanceLogger::instance().log(con->LOGNAME,M_LOG_NRM, M_LOG_TRC)
 				<< "Entered socket_to_ssh()" << std::endl;
 
+#ifdef USE_BOOST_INSTEAD_CXX11
+	std::lock_guard<std::recursive_mutex*> lock(&(con->mutex));
+#else
 	std::lock_guard<std::recursive_mutex> lock(con->mutex);
+#endif
 	OneInstanceLogger::instance().log(con->LOGNAME,M_LOG_LOW, M_LOG_TRC)
 					<< "socket_to_ssh() passed the lock" << std::endl;
 	struct evbuffer *input = bufferevent_get_input(bev);
@@ -102,7 +118,11 @@ LocalTunnelSSH::errorcb(struct bufferevent *bev, short events, void *ctx){
 	LocalTunnelSSH * con = static_cast<LocalTunnelSSH *>(ctx);
 	OneInstanceLogger::instance().log(con->LOGNAME,M_LOG_NRM, M_LOG_TRC)
 					<< "Entered errorcb()" << std::endl;
+#ifdef USE_BOOST_INSTEAD_CXX11
+	std::lock_guard<std::recursive_mutex*> lock(&(con->mutex));
+#else
 	std::lock_guard<std::recursive_mutex> lock(con->mutex);
+#endif
 	OneInstanceLogger::instance().log(con->LOGNAME,M_LOG_LOW, M_LOG_TRC)
 					<< "socket_to_ssh() passed mutex" << std::endl;
 	int finished = 0;
@@ -147,7 +167,11 @@ LocalTunnelSSH::copy_chan_to_fd(ssh_session session,
 	OneInstanceLogger::instance().log(con->LOGNAME,M_LOG_NRM, M_LOG_TRC)
 						<< "Entered copy_chan_to_fd()" << std::endl;
 
+#ifdef USE_BOOST_INSTEAD_CXX11
+	std::lock_guard<std::recursive_mutex*> lock(&(con->mutex));
+#else
 	std::lock_guard<std::recursive_mutex> lock(con->mutex);
+#endif
 	OneInstanceLogger::instance().log(con->LOGNAME,M_LOG_LOW, M_LOG_TRC)
 				<< "copy_chan_to_fd() passed mutex" << std::endl;
 	//con->remote->setData(data, len);
@@ -164,7 +188,11 @@ LocalTunnelSSH::channel_to_socket(int socket_id, short event, void * ctx){
 	OneInstanceLogger::instance().log(con->LOGNAME,M_LOG_NRM, M_LOG_TRC)
 		<< "Entered channel_to_socket()" << std::endl;
 
+#ifdef USE_BOOST_INSTEAD_CXX11
+	std::lock_guard<std::recursive_mutex*> lock(&(con->mutex));
+#else
 	std::lock_guard<std::recursive_mutex> lock(con->mutex);
+#endif
 	OneInstanceLogger::instance().log(con->LOGNAME,M_LOG_NRM, M_LOG_TRC)
 			<< "channel_to_socket() passed mutex" << std::endl;
 	con->remote->writeToSocket( con->local->getSocketId());

@@ -4,6 +4,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 #####################################
 option(compile_with_debug "Build library with debug." OFF)
 option(compile_with_tests "Build tests for application." OFF)
+option(force_boost "Force BOOST usage instead of C++11." OFF)
 
 #####################################
 ## Definition of environment
@@ -47,15 +48,37 @@ PROJECT ( Tunnelier CXX )
 #####################################
 ## Include directories 
 INCLUDE_DIRECTORIES( include modules/logger/include lib ${INSTALL_LIBS} ${INSTALL_INCS})
-ADD_DEFINITIONS( -std=c++11 -DUSE_DEBUG )
+if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU" AND NOT force_boost)
+    execute_process(
+        COMMAND ${CMAKE_CXX_COMPILER} -dumpversion OUTPUT_VARIABLE GCC_VERSION)
+    if (NOT (GCC_VERSION VERSION_GREATER 4.7 OR GCC_VERSION VERSION_EQUAL 4.7))
+        message("GCC Without c++11")
+        FIND_PACKAGE( Boost 1.40 COMPONENTS program_options REQUIRED )
+	INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
+        ADD_DEFINITIONS( -DUSE_BOOST_INSTEAD_CXX11 ${CMAKE_THREAD_LIBS_INIT} )
+    	SET(ADDITIONAL_LINK_LIBS boost_system boost_thread)
+    else()
+        message("GCC With c++11")
+        ADD_DEFINITIONS( -std=c++11 ${CMAKE_THREAD_LIBS_INIT} )
+    	SET(ADDITIONAL_LINK_LIBS )
+    endif ()
+else ()
+    message("Force Boost")
+    FIND_PACKAGE( Boost 1.40 COMPONENTS program_options REQUIRED )
+    INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
+    ADD_DEFINITIONS( -DUSE_BOOST_INSTEAD_CXX11 ${CMAKE_THREAD_LIBS_INIT} )
+    SET(ADDITIONAL_LINK_LIBS boost_system boost_thread)
+endif ()
+
+#set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
 
 #####################################
 # Search for needed lib
 #####################################
 FIND_PACKAGE(Event REQUIRED)
-SET( LIBS ${LIBS} ${Event_LIBRARIES})
-FIND_PACKAGE(SSH REQUIRED)
-SET( LIBS ${LIBS} ${SSH_LIBRARIES})
+SET( LIBS ${Event_LIBRARIES})
+#FIND_PACKAGE(SSH REQUIRED)
+#SET( LIBS ${LIBS} ${SSH_LIBRARIES})
 message("Writting the libs")
 message("${LIBS}")
 message("Writting the install libs")

@@ -8,10 +8,10 @@
 #ifndef REQUESTHANDLER_HPP_
 #define REQUESTHANDLER_HPP_
 #include <string>
-#include <thread>
+#include "libJPLogger.hpp"
+#include "cxx11_implementations.hpp"
 #include "SharedMemory.h"
 #include "tunnels/TunnelManager.hpp"
-#include "libJPLogger.hpp"
 class RequestHandler{
 public:
 	RequestHandler(SharedMemory *memory, tunnelier::TunnelManager *manager, std::string ip, int port)

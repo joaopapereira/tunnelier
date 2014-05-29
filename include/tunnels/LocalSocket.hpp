@@ -8,10 +8,11 @@
 #ifndef LOCALSOCKET_HPP_
 #define LOCALSOCKET_HPP_
 #include "EndPoint.hpp"
+#include "libJPLogger.hpp"
+#include "cxx11_implementations.hpp"
 #include <event2/listener.h>
 #include <event2/bufferevent.h>
 #include <event2/buffer.h>
-#include "libJPLogger.hpp"
 
 namespace tunnelier {
 namespace tunnels {

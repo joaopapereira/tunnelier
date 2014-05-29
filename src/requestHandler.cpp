@@ -270,13 +270,17 @@ RequestHandler::create_server(){
 	}
 
 
+	OneInstanceLogger::instance().log(loggerModule,M_LOG_LOW, M_LOG_TRC,"Going to set callbacks!");
 	evhttp_set_cb(http_server, "/create", create_tunnel_handler_cb, this);
 	evhttp_set_cb(http_server, "/drop", close_tunnel_handler_cb, this);
 	evhttp_set_cb(http_server, "/stopserver", stop_server_handler_cb, this);
 
 	/* XXX default handler */
 	evhttp_set_gencb(http_server, generic_request_handler, this);
+	OneInstanceLogger::instance().log(loggerModule,M_LOG_LOW, M_LOG_TRC,"REST callbacks set!");
+	OneInstanceLogger::instance().log(loggerModule,M_LOG_NRM, M_LOG_DBG) << "Binding on: " << ip_address.c_str() << ":" << port<< std::endl;
 	handle = evhttp_bind_socket_with_handle(http_server, ip_address.c_str(), port);
+	OneInstanceLogger::instance().log(loggerModule,M_LOG_LOW, M_LOG_TRC,"Port and address bound!");
 	{
 		/* Extract and display the address we're listening on. */
 		struct sockaddr_storage ss;

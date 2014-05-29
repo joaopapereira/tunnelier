@@ -9,6 +9,7 @@
 #define SOCKETLISTENER_HPP_
 
 #include "tunnels/EventAcceptor.hpp"
+#include "cxx11_implementations.hpp"
 #include <event.h>
 #include <event2/listener.h>
 #include <event2/bufferevent.h>

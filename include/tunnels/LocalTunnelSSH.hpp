@@ -8,11 +8,11 @@
 #ifndef LOCALTUNNELSSH_HPP_
 #define LOCALTUNNELSSH_HPP_
 
-#include <mutex>
+#include "libJPLogger.hpp"
+#include "cxx11_implementations.hpp"
 #include "tunnels/LocalSocket.hpp"
 #include "tunnels/Tunnel.hpp"
 #include "tunnels/SSHRemoteEndPoint.hpp"
-#include "libJPLogger.hpp"
 
 
 namespace tunnelier {

@@ -8,12 +8,18 @@
 #include "tunnels/TunnelManager.hpp"
 #include <algorithm>
 #include <iostream>
+#include <utility>
 
 
 namespace tunnelier {
 std::string TunnelManager::LOGNAME("MAN");
 using namespace tunnels;
 using namespace jpCppLibs;
+#ifdef USE_BOOST_INSTEAD_CXX11
+using namespace boost;
+#else
+using namespace std;
+#endif
 
 TunnelManager::TunnelManager(int numberWorkers) {
 	for( int i = 0 ; i < numberWorkers; i++ ){
@@ -52,29 +58,63 @@ TunnelManager::TunnelManager(int numberWorkers) {
 }
 
 TunnelManager::~TunnelManager() {
+#ifdef USE_BOOST_INSTEAD_CXX11
+	std::lock_guard<std::mutex*> lock(&mutex);
+#else
 	std::lock_guard<std::mutex> lock(mutex);
+#endif
 	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC,"Destroying tunnel manager" );
 	// TODO Auto-generated destructor stub
 	event_del(poll_event);
 	event_del(stats_event);
 	event_del(cleanup_event);
+#ifdef USE_BOOST_INSTEAD_CXX11
+	for(std::map<int, tunnels::SocketListener*>::iterator it = openListeners.begin();
+	    it != openListeners.end();
+	    it++)
+		delete (*it).second;
+#else
 	for(auto t: openListeners){
 		delete std::get<1>(t);
 	}
+#endif
 
 
+#ifdef USE_BOOST_INSTEAD_CXX11
+	for(std::vector<tunnels::TunnelWorker * >::iterator it = workers.begin();
+	    it != workers.end();
+	    it++){
+                tunnels::TunnelWorker * w = *it;
+#else
 	for(tunnels::TunnelWorker * w: workers){
+#endif
 		w->stop_join();
 		delete w;
 	}
 	workers.clear();
+#ifdef USE_BOOST_INSTEAD_CXX11
+	for(std::vector<tunnels::LocalTunnelSSH*>::iterator it = activeTunnels.begin();
+	    it != activeTunnels.end();
+	    it++)
+                delete *it;
+#else
 	for(auto tunnel: activeTunnels){
 		delete tunnel;
 	}
+#endif
+
 	activeTunnels.clear();
+#ifdef USE_BOOST_INSTEAD_CXX11
+	for(std::vector<tunnels::LocalTunnelSSH*>::iterator it = freeTunnels.begin();
+	    it != freeTunnels.end();
+	    it++)
+                delete *it;
+#else
 	for(auto tunnel: freeTunnels){
 		delete tunnel;
 	}
+#endif
+
 	freeTunnels.clear();
 
 	event_free(poll_event);
@@ -86,7 +126,11 @@ TunnelManager::~TunnelManager() {
 
 int TunnelManager::createTunnel(int localPort, Address middleAddress,
 		User middleUser, Address destination) {
+#ifdef USE_BOOST_INSTEAD_CXX11
+	std::lock_guard<std::mutex*> lock(&mutex);
+#else
 	std::lock_guard<std::mutex> lock(mutex);
+#endif
 	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC,"Starting tunnel creation!");
 	if( 0 == createListener(localPort, destination) ){
 		OneInstanceLogger::instance().log(LOGNAME,M_LOG_LOW, M_LOG_DBG,"Check if connection already open");
@@ -96,7 +140,7 @@ int TunnelManager::createTunnel(int localPort, Address middleAddress,
 		}
 		OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG,"Create SSH Connection!");
 		if( 0 == createSSHConnection( middleAddress, middleUser) ){
-			tunnelLink[localPort] = std::make_tuple(middleAddress, middleUser, destination);
+			tunnelLink[localPort] = make_tuple(middleAddress, middleUser, destination);
 			OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_INF,"Tunnel created successfully!");
 			return 0;
 		}
@@ -114,16 +158,19 @@ int TunnelManager::createTunnel(int localPort, Address middleAddress,
 }
 int
 TunnelManager::closeTunnel(int localPort,bool forceClose) {
+#ifdef USE_BOOST_INSTEAD_CXX11
+	std::lock_guard<std::mutex*> lock(&mutex);
+#else
 	std::lock_guard<std::mutex> lock(mutex);
+#endif
 	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_INF,"Closing tunnel at: %d!", localPort);
 
 	try{
-		auto listener = openListeners.at(localPort);
+		tunnels::SocketListener* listener = openListeners.at(localPort);
 		openListeners.erase(localPort);
 		delete listener;
 	}catch(...){ return -1;};
 	try{
-		auto tunnelInfo = tunnelLink[localPort];
 		tunnelLink.erase(localPort);
 		if( forceClose ){
 
@@ -171,12 +218,21 @@ int TunnelManager::createSSHConnection(Address host, User user) {
 						"Connection already open!" << std::endl;
 		return 0;
 	}
-	openConnections.insert(std::make_pair<std::tuple<Address,User>,std::vector<tunnels::SSHConnection*> >(std::make_tuple(host,user),std::vector<tunnels::SSHConnection*>()));
+#ifdef USE_BOOST_INSTEAD_CXX11
+	openConnections.insert(std::make_pair<std::pair<Address,User>,std::vector<tunnels::SSHConnection*> >(std::make_pair<Address, User>(host,user),std::vector<tunnels::SSHConnection*>()));
+#else
+	openConnections.insert(std::make_pair<tuple<Address,User>,std::vector<tunnels::SSHConnection*> >(make_tuple(host,user),std::vector<tunnels::SSHConnection*>()));
+#endif
 	SSHConnection * connection = new SSHConnection(host, user);
 	if( 0 == connection->connect() ){
 		OneInstanceLogger::instance().log(LOGNAME,M_LOG_LOW, M_LOG_DBG) <<
 								"Connection created with success" << std::endl;
-		openConnections[std::make_tuple(host,user)].push_back(connection);
+
+#ifdef USE_BOOST_INSTEAD_CXX11
+		openConnections[std::make_pair<Address,User>(host,user)].push_back(connection);
+#else
+		openConnections[make_tuple(host,user)].push_back(connection);
+#endif
 		TunnelWorker * worker = this->nextAvailableWorker();
 		connection->setPollCallBack(TunnelManager::poolTunnels, this, worker->getEventBase());
 		worker->addWork();
@@ -190,25 +246,45 @@ int TunnelManager::createSSHConnection(Address host, User user) {
 
 int TunnelManager::isSSHConnectionOpen(Address host, User user) {
 	try{
-		auto vec = openConnections.at(std::make_pair(host,user));
+#ifdef USE_BOOST_INSTEAD_CXX11
+		std::vector<tunnels::SSHConnection*>  vec = openConnections.at(std::make_pair<Address,User>(host,user));
+#else
+		std::vector<tunnels::SSHConnection*>  vec = openConnections.at(make_tuple(host,user));
+#endif
 		return vec.size();
 	}catch(std::out_of_range &e){}
 	catch(...){}
 	return -1;
 }
 
+bool compareWorker( TunnelWorker *a , TunnelWorker *b){
+	return b->getCurrentAmountOfWork() > a->getCurrentAmountOfWork();
+}
 TunnelWorker* TunnelManager::nextAvailableWorker() {
-	sort(workers.begin(), workers.end(), [](TunnelWorker * a, TunnelWorker * b) {
-		return b->getCurrentAmountOfWork() > a->getCurrentAmountOfWork();
-	});
+	sort(workers.begin(), workers.end(), compareWorker);
+	//sort(workers.begin(), workers.end(), [](TunnelWorker * a, TunnelWorker * b) {
+	//	return b->getCurrentAmountOfWork() > a->getCurrentAmountOfWork();
+	//});
 	return *workers.begin();
 }
 
 
 void TunnelManager::poolTunnels(int fd, short event, void* arg) {
 	TunnelManager * manager = static_cast<TunnelManager*>(arg);
+#ifdef USE_BOOST_INSTEAD_CXX11
+	std::lock_guard<std::mutex*> lock(&(manager->mutex));
+#else
 	std::lock_guard<std::mutex> lock(manager->mutex);
+#endif
+
+#ifdef USE_BOOST_INSTEAD_CXX11
+	for(std::vector<tunnels::LocalTunnelSSH*>::iterator it = manager->activeTunnels.begin();
+	    it != manager->activeTunnels.end();
+	    it++){
+		tunnels::LocalTunnelSSH* tunnel = *it;
+#else
 	for(auto tunnel: manager->activeTunnels){
+#endif
 		if( 1 == tunnel->poll() ){
 			TunnelWorker * w = manager->nextAvailableWorker();
 			event_base_once(w->getEventBase(), 1, EV_READ, tunnel->channel_to_socket, tunnel, nullptr);
@@ -233,14 +309,21 @@ void  TunnelManager::acceptFromListener_cb(struct evconnlistener *listener,
 	Manager_SocketListener * arg = static_cast<Manager_SocketListener*>(ctx);
 	TunnelManager * manager = arg->manager;
 	SocketListener * listen = arg->listener;
-	auto res = manager->tunnelLink[listen->getLocalPort()];
-	SSHRemoteEndPoint endpoint(std::get<0>(res), std::get<1>(res), std::get<2>(res));
+	tuple<Address,User,Address>  res = manager->tunnelLink[listen->getLocalPort()];
+	SSHRemoteEndPoint endpoint(get<0>(res), get<1>(res), get<2>(res));
 	TunnelWorker * worker = manager->nextAvailableWorker();
 	TunnelWorker * w1;
 	//auto it = std::find(manager->freeTunnels.begin(), manager->freeTunnels.end(),&endpoint);
 	tunnels::LocalTunnelSSH * sshTunnel = nullptr;
-	auto delCursor = manager->freeTunnels.begin();
+	std::vector<tunnels::LocalTunnelSSH*>::iterator  delCursor = manager->freeTunnels.begin();
+#ifdef USE_BOOST_INSTEAD_CXX11
+	for(std::vector<tunnels::LocalTunnelSSH*>::iterator iter = manager->freeTunnels.begin();
+	    iter != manager->freeTunnels.end();
+	    iter++){
+		tunnels::LocalTunnelSSH* it = *iter;
+#else
 	for(auto it: manager->freeTunnels ){
+#endif
 		if(*static_cast<SSHRemoteEndPoint*>(it->getRemoteEndPoint()) == endpoint){
 			sshTunnel = it;
 			break;
@@ -257,8 +340,16 @@ void  TunnelManager::acceptFromListener_cb(struct evconnlistener *listener,
 		tunnels::SSHRemoteEndPoint * sshEndPoint;
 		tunnels::SSHConnection* conn = nullptr;
 		try{
-			auto allConnections = manager->openConnections.at(std::make_tuple(std::get<0>(res), std::get<1>(res)));
+#ifdef USE_BOOST_INSTEAD_CXX11
+			std::vector<tunnels::SSHConnection*> allConnections = manager->openConnections.at(std::make_pair<Address,User>(get<0>(res), get<1>(res)));
+			for(std::vector<tunnels::SSHConnection*>::iterator iter = allConnections.begin();
+			    iter != allConnections.end();
+			    iter++){
+				tunnels::SSHConnection* t1 = *iter;
+#else
+			std::vector<tunnels::SSHConnection*> allConnections = manager->openConnections.at(make_tuple(get<0>(res), get<1>(res)));
 			for( auto t1: allConnections){
+#endif
 				OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG) <<
 							"Connection is open check if channel can be created!" << std::endl;
 				if( t1->canCreateChannel()){
@@ -271,7 +362,7 @@ void  TunnelManager::acceptFromListener_cb(struct evconnlistener *listener,
 			if( nullptr == conn ){
 				OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG) <<
 										"New connection need to be established" << std::endl;
-				conn = new tunnels::SSHConnection(std::get<0>(res), std::get<1>(res));
+				conn = new tunnels::SSHConnection(get<0>(res), get<1>(res));
 				if( 0 == conn->connect() ){
 					OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG) <<
 											"Connection created with success" << std::endl;
@@ -279,13 +370,17 @@ void  TunnelManager::acceptFromListener_cb(struct evconnlistener *listener,
 									"Connection created with success" << std::endl;
 					conn->setPollCallBack(TunnelManager::poolTunnels, manager, worker->getEventBase());
 					worker->addWork();
-					manager->openConnections[std::make_tuple(std::get<0>(res), std::get<1>(res))].push_back(conn);
+#ifdef USE_BOOST_INSTEAD_CXX11
+					manager->openConnections[std::make_pair<Address,User>(get<0>(res), get<1>(res))].push_back(conn);
+#else
+					manager->openConnections[make_tuple(get<0>(res), get<1>(res))].push_back(conn);
+#endif
 				}else
 					throw std::ios_base::failure("Unable to create new connection");
 			}
 			OneInstanceLogger::instance().log(LOGNAME,M_LOG_LOW, M_LOG_DBG) <<
 									"Going to create End Point" << std::endl;
-			sshEndPoint = conn->createEndPoint(std::get<2>(res), worker->getEventBase());
+			sshEndPoint = conn->createEndPoint(get<2>(res), worker->getEventBase());
 			if( nullptr == sshEndPoint ){
 				throw std::ios_base::failure("Error creating SSH Channel!!!");
 			}
@@ -337,10 +432,14 @@ TunnelManager::acceptError_cb(struct evconnlistener *listener, void *ctx){
 void
 TunnelManager::localSocketClose(int socket_id, short event, void * ctx){
 	ManagerTunnelWorker * container = static_cast<ManagerTunnelWorker *>(ctx);
+#ifdef USE_BOOST_INSTEAD_CXX11
+	std::lock_guard<std::mutex*> lock(&(container->manager->mutex));
+#else
 	std::lock_guard<std::mutex> lock(container->manager->mutex);
+#endif
 	OneInstanceLogger::instance().log(LOGNAME,M_LOG_LOW, M_LOG_DBG) <<
 							"Socket is being closed" << std::endl;
-	auto it = find(container->manager->activeTunnels.begin(),
+	std::vector<tunnels::LocalTunnelSSH*>::iterator it = find(container->manager->activeTunnels.begin(),
 				   container->manager->activeTunnels.end(),
 				   container->localSocket);
 	if( it == container->manager->activeTunnels.end()){
@@ -364,11 +463,26 @@ void TunnelManager::stats(int fd, short event, void* arg) {
 	tv1.tv_sec = 30;
 	tv1.tv_usec = 0;
 	TunnelManager * manager = static_cast<TunnelManager*>(arg);
+#ifdef USE_BOOST_INSTEAD_CXX11
+	std::lock_guard<std::mutex*> lock(&(manager->mutex));
+#else
 	std::lock_guard<std::mutex> lock(manager->mutex);
+#endif
 
 	int numCons = 0;
+#ifdef USE_BOOST_INSTEAD_CXX11
+	for(std::map<std::pair<Address,User>,std::vector<tunnels::SSHConnection*> >::iterator iter = manager->openConnections.begin();
+	    iter != manager->openConnections.end();
+	    iter++){
+		std::vector<tunnels::SSHConnection*> connVec = iter->second;
+		for(std::vector<tunnels::SSHConnection*>::iterator iter1 = (connVec).begin();
+		    iter1 != (connVec).end();
+		    iter1++){
+			tunnels::SSHConnection* con = *iter1;
+#else
 	for(auto connVec: manager->openConnections){
 		for( auto con: std::get<1>(connVec)){
+#endif
 			OneInstanceLogger::instance().log("STAT",M_LOG_NRM, M_LOG_INF) <<
 						"  Active connection:" <<
 						*con << std::endl;
@@ -391,11 +505,27 @@ void TunnelManager::cleanUp(int fd, short event, void* arg) {
 	tv1.tv_sec = 30;
 	tv1.tv_usec = 0;
 	TunnelManager * manager = static_cast<TunnelManager*>(arg);
+#ifdef USE_BOOST_INSTEAD_CXX11
+	std::lock_guard<std::mutex*> lock(&(manager->mutex));
+#else
 	std::lock_guard<std::mutex> lock(manager->mutex);
+#endif
 	int totalSSHConnectionsClean = 0;
+#ifdef USE_BOOST_INSTEAD_CXX11
+	for(std::map<std::pair<Address,User>,std::vector<tunnels::SSHConnection*> >::iterator iter = manager->openConnections.begin();
+	    iter != manager->openConnections.end();
+	    iter++){
+		std::vector<tunnels::SSHConnection*> connVector = iter->second;
+		std::vector<tunnels::SSHConnection*> newVec;
+		for(std::vector<tunnels::SSHConnection*>::iterator iter1 = (connVector).begin();
+		    iter1 != (connVector).end();
+		    iter1++){
+			tunnels::SSHConnection* connection = *iter1;
+#else
 	for(auto connVector: manager->openConnections ){
 		std::vector<tunnels::SSHConnection*> newVec;
 		for( auto connection: std::get<1>(connVector)){
+#endif
 			if( connection->canBeRemoved() ){
 				delete connection;
 				totalSSHConnectionsClean++;
@@ -403,7 +533,11 @@ void TunnelManager::cleanUp(int fd, short event, void* arg) {
 				newVec.push_back(connection);
 			}
 		}
-		manager->openConnections[std::get<0>(connVector)] = newVec;
+#ifdef USE_BOOST_INSTEAD_CXX11
+		manager->openConnections[iter->first] = newVec;
+#else
+		manager->openConnections[get<0>(connVector)] = newVec;
+#endif
 
 	}
 	OneInstanceLogger::instance().log("STAT",M_LOG_NRM, M_LOG_INF) <<

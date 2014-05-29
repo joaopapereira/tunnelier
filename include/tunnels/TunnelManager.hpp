@@ -8,11 +8,8 @@
 #ifndef TUNNELMANAGER_HPP_
 #define TUNNELMANAGER_HPP_
 #include "libJPLogger.hpp"
-#include <unordered_map>
+#include "cxx11_implementations.hpp"
 #include <map>
-#include <tuple>
-#include <mutex>
-#include <thread>
 #include <vector>
 #include <event.h>
 #include <time.h>
@@ -74,9 +71,17 @@ private:
 
 	std::vector<tunnels::LocalTunnelSSH* > freeTunnels;
 	std::vector<tunnels::LocalTunnelSSH*> activeTunnels;
-	std::map<std::tuple<Address,User>,std::vector<tunnels::SSHConnection*>> openConnections;
-	std::unordered_map<int, tunnels::SocketListener*> openListeners;
-	std::unordered_map<int,std::tuple<Address,User,Address>> tunnelLink;
+#ifdef USE_BOOST_INSTEAD_CXX11
+	std::map<std::pair<Address,User>,std::vector<tunnels::SSHConnection*> > openConnections;
+#else
+	std::map<std::tuple<Address,User>,std::vector<tunnels::SSHConnection*> > openConnections;
+#endif
+	std::map<int, tunnels::SocketListener*> openListeners;
+#ifdef USE_BOOST_INSTEAD_CXX11
+	std::map<int,boost::tuple<Address,User,Address> > tunnelLink;
+#else
+	std::map<int,std::tuple<Address,User,Address> > tunnelLink;
+#endif
 	std::vector<tunnels::TunnelWorker * > workers;
 	event *poll_event;
 	event *stats_event;

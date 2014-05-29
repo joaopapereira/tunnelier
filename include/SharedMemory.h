@@ -9,6 +9,7 @@
 #define SHAREDMEMORY_H_
 #include <vector>
 #include <event.h>
+#include "cxx11_implementations.hpp"
 //#include "Tunnel.hpp"
 class SharedMemory {
 public:

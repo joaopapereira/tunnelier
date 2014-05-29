@@ -45,7 +45,11 @@ SSHRemoteEndPoint::~SSHRemoteEndPoint() {
 }
 
 int SSHRemoteEndPoint::poll() {
+#ifdef USE_BOOST_INSTEAD_CXX11
+	std::lock_guard<std::mutex*> lock(&mutex);
+#else
 	std::lock_guard<std::mutex> lock(mutex);
+#endif
 	int result = channel && \
 	ssh_channel_is_open(channel) &&
 	ssh_channel_poll(channel,0);
@@ -58,15 +62,27 @@ int SSHRemoteEndPoint::poll() {
 	return result;
 }
 int SSHRemoteEndPoint::writeToEndPoint( void* data, int length){
+#ifdef USE_BOOST_INSTEAD_CXX11
+	std::lock_guard<std::mutex*> lock(&mutex);
+#else
 	std::lock_guard<std::mutex> lock(mutex);
+#endif
 	return ssh_channel_write(channel, data, length);
 }
 int SSHRemoteEndPoint::readFromEndPoint(){
+#ifdef USE_BOOST_INSTEAD_CXX11
+	std::lock_guard<std::mutex*> lock(&mutex);
+#else
 	std::lock_guard<std::mutex> lock(mutex);
+#endif
 	return ssh_channel_read(channel, data, length,0);
 }
 int SSHRemoteEndPoint::writeToSocket(int socket_fd){
+#ifdef USE_BOOST_INSTEAD_CXX11
+	std::lock_guard<std::mutex*> lock(&mutex);
+#else
 	std::lock_guard<std::mutex> lock(mutex);
+#endif
 	int r;
 	char sendBuff[2048];
 	int lus;

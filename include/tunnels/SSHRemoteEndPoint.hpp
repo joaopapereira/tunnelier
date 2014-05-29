@@ -8,13 +8,13 @@
 #ifndef SSHREMOTEENDPOINT_HPP_
 #define SSHREMOTEENDPOINT_HPP_
 
+#include "libJPLogger.hpp"
+#include "cxx11_implementations.hpp"
 #include <tunnels/EndPoint.hpp>
 #include <Address.hpp>
 #include <User.hpp>
-#include "libJPLogger.hpp"
 #include <libssh/libssh.h>
 #include <libssh/callbacks.h>
-#include <mutex>
 #include <event.h>
 #include <iostream>
 namespace tunnelier {
@@ -32,7 +32,11 @@ public:
 			   (address    == rhs.address);
 	}
 	inline void setReadCallBack(event_callback_fn callBack, void * arguments){
+#ifdef USE_BOOST_INSTEAD_CXX11
+		std::lock_guard<std::mutex*> lock(&mutex);
+#else
 		std::lock_guard<std::mutex> lock(mutex);
+#endif
 		readCallBack = callBack;
 		event_assign(socket_event, workerEventBase, -1, EV_WRITE, callBack, arguments);
 		this->argument = arguments;

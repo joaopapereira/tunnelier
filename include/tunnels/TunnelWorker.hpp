@@ -8,9 +8,8 @@
 #ifndef TUNNELWORKER_HPP_
 #define TUNNELWORKER_HPP_
 
+#include "cxx11_implementations.hpp"
 #include "EventAcceptor.hpp"
-#include <thread>
-#include <mutex>
 #include <event.h>
 #include <iostream>
 #include <unistd.h>
@@ -32,7 +31,11 @@ public:
 		current_thread->join();
 	}
 	int getCurrentAmountOfWork(){
+#ifdef USE_BOOST_INSTEAD_CXX11
+		std::lock_guard<std::mutex*> lock(&mutex);
+#else
 		std::lock_guard<std::mutex> lock(mutex);
+#endif
 		return amountOfWork;
 	}
 	static void run(TunnelWorker * worker){
@@ -46,11 +49,19 @@ public:
 
 	}
 	inline void addWork(){
+#ifdef USE_BOOST_INSTEAD_CXX11
+		std::lock_guard<std::mutex*> lock(&mutex);
+#else
 		std::lock_guard<std::mutex> lock(mutex);
+#endif
 		amountOfWork++;	
 	};
 	inline void removeWork(){
+#ifdef USE_BOOST_INSTEAD_CXX11
+		std::lock_guard<std::mutex*> lock(&mutex);
+#else
 		std::lock_guard<std::mutex> lock(mutex);
+#endif
 		amountOfWork--;	
 	};
 private:
