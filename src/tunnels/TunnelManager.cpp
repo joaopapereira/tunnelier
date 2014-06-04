@@ -22,10 +22,12 @@ using namespace std;
 #endif
 
 TunnelManager::TunnelManager(int numberWorkers) {
+	managementWorker = new tunnels::TunnelWorker();
+	managementWorker->start();
 	for( int i = 0 ; i < numberWorkers; i++ ){
 		workers.push_back((new tunnels::TunnelWorker())->start());
 	}
-	tunnels::TunnelWorker * w = workers.at(0);
+	tunnels::TunnelWorker * w = managementWorker;
 	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_TRC,"TunnelManager starting...");
 
 	tv.tv_sec = 1;
@@ -116,6 +118,9 @@ TunnelManager::~TunnelManager() {
 #endif
 
 	freeTunnels.clear();
+
+	managementWorker->stop_join();
+	delete managementWorker;
 
 	event_free(poll_event);
 	event_free(stats_event);

@@ -83,6 +83,7 @@ private:
 	std::map<int,std::tuple<Address,User,Address> > tunnelLink;
 #endif
 	std::vector<tunnels::TunnelWorker * > workers;
+	tunnels::TunnelWorker * managementWorker;
 	event *poll_event;
 	event *stats_event;
 	event *cleanup_event;

@@ -61,12 +61,31 @@ SSHConnection::connect() {
 				  				<< "Authenticated using method none!" << std::endl;
 	} else {
 		OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG)
-						  				<< "Authentication console!" << std::endl;
-	  rc = authenticate_kbdint();
-	  if(rc != SSH_AUTH_SUCCESS){
-		  cerr << "Authentication failed: " << ssh_get_error(connection) << std::endl;
-		  return -2;
-	  }
+                       << "Authentication console!" << std::endl;
+		int method = ssh_auth_list(connection);
+		if (method & SSH_AUTH_METHOD_PUBLICKEY) {
+		    rc = ssh_userauth_autopubkey(connection, NULL);
+		    if (rc == SSH_AUTH_ERROR) {
+			  OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG)
+				<< "Authentication Public Key failed: " << ssh_get_error(connection) << std::endl;
+			  return -2;
+		    }
+		} else if (method & SSH_AUTH_METHOD_PASSWORD) {
+		    rc = ssh_userauth_password(connection, NULL, user.getPassword().c_str());
+		    if (rc == SSH_AUTH_ERROR) {
+			  OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG)
+				<< "Authentication Password failed: " << ssh_get_error(connection) << std::endl;
+			  return -2;
+		    }
+		}else if (method & SSH_AUTH_METHOD_INTERACTIVE) {
+
+			rc = authenticate_kbdint();
+			if(rc != SSH_AUTH_SUCCESS){
+			  OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG)
+				<< "Authentication Interactive keyboard failed: " << ssh_get_error(connection) << std::endl;
+			  return -2;
+			}
+		}
 	}
 	OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_DBG)
 					<< "Connection created to: "  <<  host.getHost() << std::endl;
@@ -162,7 +181,7 @@ SSHConnection::createEndPoint(Address destination, struct event_base * workerEve
 
 	forwarding_channel = ssh_channel_new(connection);
 
-	ssh_set_log_level( SSH_LOG_FUNCTIONS );
+	//ssh_set_log_level( SSH_LOG_FUNCTIONS );
 	if (forwarding_channel == NULL) {
 		OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_ERR)
 				<< "Error creating End Point("  <<  host.getHost() << "): "
@@ -176,6 +195,8 @@ SSHConnection::createEndPoint(Address destination, struct event_base * workerEve
 									"localhost", 1);
 	if (rc != SSH_OK)
 	{
+		if( 0 == ssh_is_connected(connection) )
+			num_channels = MAX_NUMBER_CHANNELS;
 		OneInstanceLogger::instance().log(LOGNAME,M_LOG_NRM, M_LOG_ERR)
 						<< "Error creating forward channel("  <<  host.getHost() << "): "
 						<<ssh_get_error(connection) <<std::endl;

@@ -1,8 +1,10 @@
-/*
- * SharedMemory.h
+/* SharedMemory.hpp --
  *
- *  Created on: Mar 29, 2014
- *      Author: joao
+ * Copyright (c) 2014 Joao Pereira <joaopapereira@gmail.com>
+ * All rights reserved.
+ *
+ * This software may be modified and distributed under the terms
+ * of the MIT license.  See the LICENSE file for details.
  */
 
 #ifndef SHAREDMEMORY_H_

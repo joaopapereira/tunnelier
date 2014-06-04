@@ -1,8 +1,10 @@
-/*
- * User.hpp
+/* User.hpp --
  *
- *  Created on: Apr 2, 2014
- *      Author: joao
+ * Copyright (c) 2014 Joao Pereira <joaopapereira@gmail.com>
+ * All rights reserved.
+ *
+ * This software may be modified and distributed under the terms
+ * of the MIT license.  See the LICENSE file for details.
  */
 
 #ifndef USER_HPP_
@@ -52,6 +54,12 @@ public:
 		return (s1.username.size()+s1.password.size()) <
 				(s2.username.size()+s2.password.size());
 	};
+	/**
+	 * Overloading the << operator to write the user information
+	 * @param os Output Stream
+	 * @param user User to be printed
+	 * @return Output Stream with the user information
+	 */
 	friend std::ostream& operator<<(std::ostream& os, const User& user)
 	{
 	  os << user.username;
